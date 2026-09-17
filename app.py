@@ -21,9 +21,6 @@ with st.sidebar:
         default=["C-HR", "CX-30", "MAZDA3", "ヤリスクロス"]
     )
     
-    st.subheader("🔍 表示フィルター")
-    only_matched = st.checkbox("🟢 希望車種がある空港のみ表示する", value=False)
-    
     search_btn = st.button("🔍 条件に合う候補地を一括確認", type="primary")
 
 # --- 空港＆店舗情報データベース ---
@@ -81,59 +78,77 @@ if search_btn or True:
     
     st.success(f"📅 【設定日時】{start_dt.strftime('%Y/%m/%d %H:%M')} 〜 {end_dt.strftime('%m/%d %H:%M')}")
     
-    st.markdown("### 📋 候補地チェック・絞り込み")
-    st.caption("車・宿・天気を手動確認し、クリアした空港にチェックを入れて比較候補を決定してください。")
+    # ----------------------------------------------------
+    # 最上部：条件クリア一括判定サマリー（チェックボックス一覧）
+    # ----------------------------------------------------
+    st.markdown("### 📊 条件クリア空港 一覧（判定サマリー）")
+    st.caption("希望車種の配備状況に基づく自動チェックです。手動確認結果に合わせてチェックを変更できます。")
 
-    for ap in AIRPORT_DB:
+    cleared_states = {}
+    
+    # 2列に分けて一覧表示
+    col_a, col_b = st.columns(2)
+    for idx, ap in enumerate(AIRPORT_DB):
         matched_models = [m for m in times_car_models if m in ap["models"]]
         has_match = len(matched_models) > 0
         
-        # サイドバーで「希望車種がある空港のみ表示」が有効な場合、一致しない空港をスキップ
-        if only_matched and not has_match:
-            continue
-        
-        status_tag = "🟢 希望車種配備あり" if has_match else "🟡 コンパクト/他車種のみ"
+        status_label = f"🟢 {ap['name']} ({ap['code']}) - {', '.join(matched_models) if has_match else '希望車種なし'}"
         if ap["type"] == "rental":
-            status_tag = "🔴 カーシェア非対応（レンタカー専業）"
+            status_label = f"🔴 {ap['name']} ({ap['code']}) - カーシェア非対応"
 
-        # チェックボックスによるクリア管理
-        is_cleared = st.checkbox(f"✅ **【{ap['name']} ({ap['code']})】** - {status_tag}", value=has_match, key=ap['code'])
+        target_col = col_a if idx % 2 == 0 else col_b
+        with target_col:
+            # 初期値は「希望車種があるかどうか」で自動設定
+            cleared_states[ap['code']] = st.checkbox(status_label, value=has_match, key=f"chk_{ap['code']}")
 
-        if is_cleared or not only_matched:
-            with st.expander(f"詳細確認：{ap['name']}（{ap['region']}）", expanded=is_cleared):
-                col1, col2, col3 = st.columns(3)
+    st.divider()
+
+    # ----------------------------------------------------
+    # 下部：各空港の詳細＆リンク確認エリア
+    # ----------------------------------------------------
+    st.markdown("### 📲 各空港の詳細・照会リンク")
+
+    for ap in AIRPORT_DB:
+        is_checked = cleared_states[ap['code']]
+        matched_models = [m for m in times_car_models if m in ap["models"]]
+        has_match = len(matched_models) > 0
+        
+        header_icon = "✅" if is_checked else "⚪"
+        
+        with st.expander(f"{header_icon} 【{ap['name']} ({ap['code']})】 - {ap['region']}", expanded=is_checked):
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                st.markdown("**🚗 車両・配備ステーション情報**")
+                st.caption(ap["note"])
                 
-                with col1:
-                    st.markdown("**🚗 車両・配備ステーション情報**")
-                    st.caption(ap["note"])
+                if ap["type"] == "times":
+                    st.write("**【配備されている主な車種】**")
+                    st.write(", ".join(ap["models"]))
                     
-                    if ap["type"] == "times":
-                        st.write("**【配備されている主な車種】**")
-                        st.write(", ".join(ap["models"]))
-                        
-                        if has_match:
-                            st.success(f"希望一致: {', '.join(matched_models)}")
-                        else:
-                            st.warning("指定された希望車種の配備が少ない/ありません")
-                        
-                        st.markdown("---")
-                        mypage_url = "https://share.timescar.jp/view/sp/member/mypage.jsp"
-                        st.link_button("📲 タイムズカー マイページ（空車照会）へ", mypage_url)
-                        st.caption("※マイページの「ステーション検索」で「" + ap['name'] + "」を入力")
+                    if has_match:
+                        st.success(f"希望一致: {', '.join(matched_models)}")
                     else:
-                        st.error("タイムズカーシェアのステーションはありません")
-                        st.write("**【代替手段】**")
-                        st.link_button("📲 dカーシェアで空車検索", "https://dcarshare.docomo.ne.jp/")
-                        st.link_button("📲 タイムズカーレンタル（公式）", "https://rental.timescar.jp/")
+                        st.warning("指定された希望車種の配備が少ない/ありません")
+                    
+                    st.markdown("---")
+                    mypage_url = "https://share.timescar.jp/view/sp/member/mypage.jsp"
+                    st.link_button("📲 タイムズカー マイページ（空車照会）へ", mypage_url)
+                    st.caption("※マイページの「ステーション検索」で「" + ap['name'] + "」を入力")
+                else:
+                    st.error("タイムズカーシェアのステーションはありません")
+                    st.write("**【代替手段】**")
+                    st.link_button("📲 dカーシェアで空車検索", "https://dcarshare.docomo.ne.jp/")
+                    st.link_button("📲 タイムズカーレンタル（公式）", "https://rental.timescar.jp/")
 
-                with col2:
-                    st.markdown("**🏨 温泉＆バイキング宿**")
-                    st.write("1泊2食付き 予算1〜2万円台")
-                    jalan_url = f"https://www.jalan.net/uw/uwp3000/uwp3001.do?keyword={ap['name']}+温泉+バイキング"
-                    st.link_button("📲 じゃらんで空室・プラン確認", jalan_url)
+            with col2:
+                st.markdown("**🏨 温泉＆バイキング宿**")
+                st.write("1泊2食付き 予算1〜2万円台")
+                jalan_url = f"https://www.jalan.net/uw/uwp3000/uwp3001.do?keyword={ap['name']}+温泉+バイキング"
+                st.link_button("📲 じゃらんで空室・プラン確認", jalan_url)
 
-                with col3:
-                    st.markdown("**🌤 現地天気**")
-                    st.write("出発前の天気予報確認")
-                    tenki_url = f"https://tenki.jp/search/?keyword={ap['name']}"
-                    st.link_button("📲 天気予報を確認", tenki_url)
+            with col3:
+                st.markdown("**🌤 現地天気**")
+                st.write("出発前の天気予報確認")
+                tenki_url = f"https://tenki.jp/search/?keyword={ap['name']}"
+                st.link_button("📲 天気予報を確認", tenki_url)
