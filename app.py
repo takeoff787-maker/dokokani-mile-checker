@@ -3,60 +3,50 @@ from datetime import datetime, timedelta
 
 st.set_page_config(page_title="どこかにマイル 判定＆チェックツール", page_icon="✈️", layout="centered")
 
-# 一番初めのデザイン（赤いヘッダー＆カード風スタイル）を模したカスタムCSS
+# ダークモードに最適化したスタイル定義
 st.markdown("""
     <style>
-    /* 全体背景 */
-    .stApp {
-        background-color: #f4f6f8;
-    }
-    /* 赤色ヘッダー */
+    /* 赤色メインヘッダー */
     .header-card {
-        background: linear-gradient(135deg, #cc0000 0%, #990000 100%);
-        color: white;
-        padding: 20px;
-        border-radius: 12px;
-        margin-bottom: 15px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        background: linear-gradient(135deg, #d32f2f 0%, #9a0007 100%);
+        color: #ffffff;
+        padding: 16px 20px;
+        border-radius: 10px;
+        margin-bottom: 12px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
     }
     .header-card h1 {
-        color: white !important;
-        font-size: 22px !important;
+        color: #ffffff !important;
+        font-size: 20px !important;
         font-weight: bold;
-        margin: 0 0 8px 0;
+        margin: 0 0 6px 0;
     }
     .header-card p {
-        color: #f0f0f0;
-        font-size: 13px;
+        color: #f5f5f5 !important;
+        font-size: 12px;
         margin: 0;
     }
-    /* 説明用カード */
-    .info-card {
-        background-color: #eef5ff;
-        border: 1px solid #cce0ff;
-        color: #1a5296;
-        padding: 12px 15px;
-        border-radius: 8px;
-        font-size: 13px;
-        margin-bottom: 20px;
+    /* 使い方案内 */
+    .info-box {
+        background-color: #1e293b;
+        border-left: 4px solid #3b82f6;
+        color: #e2e8f0 !important;
+        padding: 10px 14px;
+        border-radius: 6px;
+        font-size: 12px;
+        margin-bottom: 16px;
     }
-    /* 空港選択カード */
-    .airport-container {
-        background-color: white;
-        padding: 15px;
-        border-radius: 10px;
-        border: 1px solid #e0e0e0;
-        margin-bottom: 20px;
-    }
-    /* チェックボックス文字サイズ調整 */
-    div.stCheckbox > label {
-        font-size: 14px !important;
-        color: #333333 !important;
+    /* 空港枠（カード風コンテナ） */
+    div[data-testid="stForm"] {
+        border: 1px solid #334155 !important;
+        background-color: #0f172a !important;
+        border-radius: 10px !important;
+        padding: 15px !important;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# 赤いメインヘッダー
+# 赤ヘッダー
 st.markdown("""
     <div class="header-card">
         <h1>✈️ どこかにマイル 判定＆チェックツール</h1>
@@ -64,10 +54,10 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
-# 使い方案内
+# 説明カード
 st.markdown("""
-    <div class="info-card">
-        💡 <b>使い方:</b> 初期状態ではすべての空港に☑が入っています。条件に合わない空港や、確認してNGだった空港はチェックを外して候補から消し込んでください。
+    <div class="info-box">
+        💡 <b>使い方:</b> 初期状態で全空港に☑が入っています。条件に合わない・NGだった空港は☑を外して消し込んでください。
     </div>
 """, unsafe_allow_html=True)
 
@@ -167,21 +157,19 @@ def get_status_tag(ap):
     else:
         return "❌未照"
 
-# --- 候補空港の選択エリア ---
-st.subheader("⚙️ 候補空港選択")
-
 selected_airports = []
 
-# 2列グリッド配置（白背景カード内）
-with st.container():
-    st.markdown('<div class="airport-container">', unsafe_allow_html=True)
+# --- 枠で囲んだ空港選択エリア（1つ目の画像風デザイン） ---
+st.markdown("##### ⚙️ 候補空港選択")
+
+# 枠で囲むコンテナフォーム
+with st.form(key="airport_select_form", border=True):
     cols = st.columns(2)
     
     for idx, ap in enumerate(AIRPORT_DB):
         car_match = has_matching_car(ap, selected_models)
         is_available = car_match or allow_other_car
         
-        # キー初期設定（基本全チェック☑ON）
         key_name = f"select_{ap['code']}"
         if key_name not in st.session_state:
             st.session_state[key_name] = is_available
@@ -197,12 +185,15 @@ with st.container():
                     selected_airports.append(ap)
             else:
                 st.caption(f"⚪ (希望車種なし) {ap['name']}")
-                
-    st.markdown('</div>', unsafe_allow_html=True)
 
-# --- 候補地の受入態勢の確認・入力エリア ---
+    # 判定更新ボタン（枠の最下部）
+    st.form_submit_button("受け入れ態勢の判定を更新", use_container_width=True)
+
+st.divider()
+
+# --- 詳細照会エリア ---
 if selected_airports:
-    st.subheader(f"📋 選択中空港の受け入れ態勢 ({len(selected_airports)}件)")
+    st.markdown(f"### 📋 候補空港の空き確認 ({len(selected_airports)}件)")
 
     for ap in selected_airports:
         status_icon = get_status_tag(ap)
