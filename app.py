@@ -4,13 +4,16 @@ from datetime import datetime, timedelta
 st.set_page_config(page_title="どこかにマイル 条件クリア空港 判定アプリ", page_icon="✈️", layout="wide")
 st.title("✈️ どこかにマイル 条件クリア空港 判定アプリ")
 
-# --- セッション状態の初期化（カスタムホテル用） ---
+# --- セッション状態の初期化 ---
 if "custom_hotels" not in st.session_state:
     st.session_state.custom_hotels = {}
 
-# --- サイドバー設定 ---
+# --- サイドバー設定（初期設定項目） ---
 with st.sidebar:
-    st.header("⚙️ 基本・検索条件")
+    st.header("⚙️ 初期設定・基本条件")
+    
+    # 利用人数
+    num_people = st.number_input("利用人数（名）", min_value=1, max_value=6, value=1, step=1)
     
     # 滞在パターン設定
     trip_type = st.radio("旅行スタイル", ["1泊2日", "2泊3日", "日帰り"], index=0)
@@ -28,181 +31,129 @@ with st.sidebar:
         
     end_time = st.time_input("帰着時間", datetime.strptime("18:00", "%H:%M").time())
     
-    st.subheader("🚗 車両条件（タイムズカー希望車種）")
+    st.subheader("🚗 車両希望条件")
+    target_classes = st.multiselect(
+        "希望クラス",
+        ["コンパクト", "SUV", "ミニバン"],
+        default=["SUV", "コンパクト"]
+    )
     times_car_models = st.multiselect(
-        "希望車種・クラス（一次判定用）",
+        "希望特定車種（任意）",
         ["C-HR", "CX-30", "MAZDA3", "ヤリスクロス", "ノア", "ヴォクシー", "フィット/ヤリス等"],
         default=["C-HR", "CX-30", "MAZDA3", "ヤリスクロス"]
     )
-    
-    st.markdown("---")
-    st.caption("※ タイムズカーシェアのマイページで空車を確認したら、各ステーションの車種横にある「☑ 空車確認済」にチェックを入れて記録できます。")
 
-# --- 空港＆ステーション＆ホテルデータベース ---
+# --- DATABASE ---
 AIRPORT_DB = [
-    {
-        "code": "CTS", "name": "新千歳空港", "region": "北海道", "type": "times",
-        "stations": [
-            {"name": "タイムズカー新千歳空港店（送迎あり）", "models": ["C-HR", "CX-30", "MAZDA3", "ノア", "ヴォクシー"]},
-            {"name": "新千歳空港A駐車場ステーション", "models": ["ヤリスクロス", "フィット"]}
-        ],
-        "fav_hotels": ["定山渓万世閣 ホテルミリオーネ", "登別万世閣"]
-    },
-    {
-        "code": "HKD", "name": "函館空港", "region": "北海道", "type": "times",
-        "stations": [
-            {"name": "函館空港駐車場ステーション", "models": ["ヤリスクロス", "フィット", "ノート"]}
-        ],
-        "fav_hotels": ["湯の川温泉 ホテル万惣", "イマジン ホテル＆リゾート函館"]
-    },
-    {
-        "code": "AOJ", "name": "青森空港", "region": "東北", "type": "rental",
-        "stations": [],
-        "fav_hotels": ["浅虫温泉 宿屋つばき"]
-    },
-    {
-        "code": "KMQ", "name": "小松空港", "region": "北陸", "type": "times",
-        "stations": [
-            {"name": "小松空港第一駐車場ステーション", "models": ["CX-30", "ヤリスクロス", "フィット"]}
-        ],
-        "fav_hotels": ["加賀温泉郷 瑠璃光"]
-    },
-    {
-        "code": "HIJ", "name": "広島空港", "region": "中国", "type": "times",
-        "stations": [
-            {"name": "広島空港前ステーション", "models": ["MAZDA3", "CX-30", "ヤリスクロス", "ノア"]}
-        ],
-        "fav_hotels": ["宮島温泉 錦水館"]
-    },
-    {
-        "code": "TKM", "name": "高松空港", "region": "四国", "type": "times",
-        "stations": [
-            {"name": "高松空港前ステーション", "models": ["ヤリスクロス", "フィット", "ノート"]}
-        ],
-        "fav_hotels": ["琴平温泉 琴参閣"]
-    },
-    {
-        "code": "MYJ", "name": "松山空港", "region": "四国", "type": "times",
-        "stations": [
-            {"name": "松山空港前ステーション", "models": ["CX-30", "ヤリスクロス", "フィット"]}
-        ],
-        "fav_hotels": ["道後温泉 ふなや"]
-    },
-    {
-        "code": "FUK", "name": "福岡空港", "region": "九州", "type": "times",
-        "stations": [
-            {"name": "福岡空港国内線前ステーション", "models": ["C-HR", "CX-30", "MAZDA3", "ノア"]},
-            {"name": "福岡空港国際線前ステーション", "models": ["ヤリスクロス", "ヴォクシー", "フィット"]}
-        ],
-        "fav_hotels": ["原鶴温泉 泰泉閣"]
-    },
-    {
-        "code": "KOJ", "name": "鹿児島空港", "region": "九州", "type": "times",
-        "stations": [
-            {"name": "鹿児島空港前ステーション", "models": ["ヤリスクロス", "フィット", "ノート"]}
-        ],
-        "fav_hotels": ["霧島温泉 霧島ホテル"]
-    }
+    {"code": "CTS", "name": "新千歳空港", "region": "北海道", "type": "times", "stations": [{"name": "タイムズカー新千歳空港店", "models": ["C-HR", "CX-30", "MAZDA3", "ノア", "ヴォクシー"]}, {"name": "新千歳空港A駐車場", "models": ["ヤリスクロス", "フィット"]}], "fav_hotels": ["定山渓万世閣 ホテルミリオーネ", "登別万世閣"]},
+    {"code": "HKD", "name": "函館空港", "region": "北海道", "type": "times", "stations": [{"name": "函館空港駐車場", "models": ["ヤリスクロス", "フィット", "ノート"]}], "fav_hotels": ["湯の川温泉 ホテル万惣"]},
+    {"code": "AOJ", "name": "青森空港", "region": "東北", "type": "rental", "stations": [], "fav_hotels": ["浅虫温泉 宿屋つばき"]},
+    {"code": "KMQ", "name": "小松空港", "region": "北陸", "type": "times", "stations": [{"name": "小松空港第一駐車場", "models": ["CX-30", "ヤリスクロス", "フィット"]}], "fav_hotels": ["加賀温泉郷 瑠璃光"]},
+    {"code": "HIJ", "name": "広島空港", "region": "中国", "type": "times", "stations": [{"name": "広島空港前", "models": ["MAZDA3", "CX-30", "ヤリスクロス", "ノア"]}], "fav_hotels": ["宮島温泉 錦水館"]},
+    {"code": "TKM", "name": "高松空港", "region": "四国", "type": "times", "stations": [{"name": "高松空港前", "models": ["ヤリスクロス", "フィット", "ノート"]}], "fav_hotels": ["琴平温泉 琴参閣"]},
+    {"code": "MYJ", "name": "松山空港", "region": "四国", "type": "times", "stations": [{"name": "松山空港前", "models": ["CX-30", "ヤリスクロス", "フィット"]}], "fav_hotels": ["道後温泉 ふなや"]},
+    {"code": "FUK", "name": "福岡空港", "region": "九州", "type": "times", "stations": [{"name": "福岡空港国内線前", "models": ["C-HR", "CX-30", "MAZDA3", "ノア"]}, {"name": "福岡空港国際線前", "models": ["ヤリスクロス", "ヴォクシー", "フィット"]}], "fav_hotels": ["原鶴温泉 泰泉閣"]},
+    {"code": "KOJ", "name": "鹿児島空港", "region": "九州", "type": "times", "stations": [{"name": "鹿児島空港前", "models": ["ヤリスクロス", "フィット", "ノート"]}], "fav_hotels": ["霧島温泉 霧島ホテル"]}
 ]
 
-# --- メイン処理 ---
+# --- MAIN PAGE ---
 start_dt = datetime.combine(start_date, start_time)
 end_dt = datetime.combine(end_date, end_time)
 
-st.success(f"📅 【設定条件】{trip_type} | {start_dt.strftime('%Y/%m/%d %H:%M')} 〜 {end_dt.strftime('%m/%d %H:%M')}")
+st.success(f"📅 【設定条件】{num_people}名利用 | {trip_type} | {start_dt.strftime('%Y/%m/%d %H:%M')} 〜 {end_dt.strftime('%m/%d %H:%M')}")
 
-st.markdown("### 📊 候補空港 一括判定サマリー")
-st.caption("希望車種が配備されているステーションがある空港を判定しています。")
+# ----------------------------------------------------
+# STEP 1: ガチャ結果の4空港 絞り込み選択
+# ----------------------------------------------------
+st.markdown("### 🎲 ガチャ候補空港の絞り込み (4箇所にチェック)")
+st.caption("どこかにマイルで表示された4つの空港にチェックを入れてください。下に選択した空港のみが表示されます。")
 
-# 空港ごとのクリア状況のまとめ
-summary_cols = st.columns(2)
+selected_airports = []
+cols = st.columns(3)
+
 for idx, ap in enumerate(AIRPORT_DB):
-    all_models_in_ap = set()
-    for st_info in ap["stations"]:
-        all_models_in_ap.update(st_info["models"])
-    
-    matched_models = [m for m in times_car_models if m in all_models_in_ap]
-    has_match = len(matched_models) > 0
-    
-    col_target = summary_cols[0] if idx % 2 == 0 else summary_cols[1]
+    col_target = cols[idx % 3]
     with col_target:
-        if ap["type"] == "rental":
-            st.error(f"🔴 **{ap['name']} ({ap['code']})** - カーシェア非対応（レンタカー店舗のみ）")
-        elif has_match:
-            st.success(f"🟢 **{ap['name']} ({ap['code']})** - 希望車種あり ({', '.join(matched_models)})")
-        else:
-            st.warning(f"🟡 **{ap['name']} ({ap['code']})** - 希望車種なし（コンパクト他のみ）")
+        # チェックボックスで選択
+        is_selected = st.checkbox(f"✈️ **{ap['name']} ({ap['code']})**", key=f"select_{ap['code']}")
+        if is_selected:
+            selected_airports.append(ap)
 
 st.divider()
 
-# --- 各空港の詳細・空車チェック＆ホテル管理 ---
-st.markdown("### 📲 各空港の詳細・空車チェック ＆ 宿案内")
+# ----------------------------------------------------
+# STEP 2: 選択された空港の確認・手動照会・最終判定
+# ----------------------------------------------------
+if not selected_airports:
+    st.info("👆 上のリストから、ガチャで出た候補空港（4箇所など）にチェックを入れてください。")
+else:
+    st.markdown(f"### 📋 選択中空港の照会＆最終判定 ({len(selected_airports)}件)")
 
-for ap in AIRPORT_DB:
-    all_models_in_ap = set()
-    for st_info in ap["stations"]:
-        all_models_in_ap.update(st_info["models"])
-    matched_models = [m for m in times_car_models if m in all_models_in_ap]
-    has_match = len(matched_models) > 0
-
-    with st.expander(f"✈️ 【{ap['name']} ({ap['code']})】詳細と空車確認・宿設定", expanded=has_match):
-        c1, c2, c3 = st.columns([1.2, 1, 0.8])
+    for ap in selected_airports:
+        # 配備車種チェック
+        all_models = set()
+        for s in ap["stations"]:
+            all_models.update(s["models"])
+        matched = [m for m in times_car_models if m in all_models]
         
-        # --- Column 1: ステーション＆車種配備 & 空車マーク ---
-        with c1:
-            st.markdown("##### 🚗 配備ステーション＆車両空き確認")
-            if ap["type"] == "times":
-                mypage_url = "https://share.timescar.jp/view/sp/member/mypage.jsp"
-                st.link_button("📲 タイムズカー マイページ（空室照会）", mypage_url)
-                st.caption(f"※検索キーワード: 「{ap['name']}」")
-                
-                for s_idx, st_info in enumerate(ap["stations"]):
-                    st.markdown(f"**📍 {st_info['name']}**")
-                    for m_idx, model in enumerate(st_info["models"]):
-                        is_fav = "⭐" if model in times_car_models else ""
-                        chk_key = f"chk_{ap['code']}_{s_idx}_{m_idx}"
-                        st.checkbox(f"{is_fav} {model} （実車の空き確認済☑）", key=chk_key)
-                    st.write("")
-            else:
-                st.error("タイムズカーシェア非対応エリアです")
-                st.link_button("📲 dカーシェアで検索", "https://dcarshare.docomo.ne.jp/")
-                st.link_button("📲 タイムズカーレンタル（公式）", "https://rental.timescar.jp/")
+        with st.container():
+            st.markdown(f"#### ✈️ 【{ap['name']} ({ap['code']})】")
+            
+            # 遂行可否チェック（手動打ち込みエリア）
+            c_chk1, c_chk2, c_res = st.columns([1, 1, 1.5])
+            with c_chk1:
+                car_ok = st.checkbox("🚗 車の空車 OK", key=f"car_ok_{ap['code']}")
+            with c_chk2:
+                if trip_type == "日帰り":
+                    hotel_ok = True
+                    st.caption("🏨 宿：日帰り不要")
+                else:
+                    hotel_ok = st.checkbox("🏨 宿の空室 OK", key=f"hotel_ok_{ap['code']}")
+            
+            with c_res:
+                if car_ok and hotel_ok:
+                    st.success("🎉 **最終判定：遂行可能 (OK)**")
+                elif car_ok or hotel_ok:
+                    st.warning("⏳ 最終判定：一部未確認")
+                else:
+                    st.error("❌ 最終判定：未確認 / 遂行不可")
 
-        # --- Column 2: ホテル・温泉宿管理 ---
-        with c2:
-            st.markdown("##### 🏨 温泉＆バイキング宿")
-            if trip_type == "日帰り":
-                st.info("💡 日帰りプランが選択されているため、ホテル検索・予約は不要です。")
-            else:
-                st.write("**【登録中のお気に入りホテル】**")
-                # 初期お気に入りリスト
-                for h in ap["fav_hotels"]:
-                    st.markdown(f"・ **{h}**")
+            # 詳細情報アコーディオン
+            with st.expander(f"{ap['name']} の照会リンク＆ステーション詳細を開く"):
+                col1, col2, col3 = st.columns([1.2, 1, 0.8])
                 
-                # 動的追加されたホテル
-                custom_list = st.session_state.custom_hotels.get(ap['code'], [])
-                for ch in custom_list:
-                    st.markdown(f"・ **{ch}** *(追加済み)*")
-                
-                # 新しいお気に入りホテルの手動追加
-                new_h = st.text_input(f"新しいホテルを追加 ({ap['code']})", key=f"input_h_{ap['code']}", placeholder="例: 登別グランドホテル")
-                if st.button("追加", key=f"btn_h_{ap['code']}"):
-                    if new_h:
-                        if ap['code'] not in st.session_state.custom_hotels:
-                            st.session_state.custom_hotels[ap['code']] = []
-                        st.session_state.custom_hotels[ap['code']].append(new_h)
-                        st.rerun()
+                # --- 車両情報 ---
+                with col1:
+                    st.markdown("**🚗 タイムズカー配備・空き照会**")
+                    if ap["type"] == "times":
+                        st.link_button("📲 マイページ（空車照会）へ", "https://share.timescar.jp/view/sp/member/mypage.jsp")
+                        st.caption(f"※「{ap['name']}」で検索")
+                        
+                        for s_idx, st_info in enumerate(ap["stations"]):
+                            st.write(f"📍 **{st_info['name']}**")
+                            st.caption("配備: " + ", ".join(st_info["models"]))
+                    else:
+                        st.error("タイムズ非対応エリア")
+                        st.link_button("📲 dカーシェア", "https://dcarshare.docomo.ne.jp/")
 
-                st.markdown("---")
-                st.write("**【満室時の代替・一覧検索】**")
-                jalan_url = f"https://www.jalan.net/uw/uwp3000/uwp3001.do?keyword={ap['name']}+温泉+バイキング"
-                st.link_button("📲 じゃらんで検索", jalan_url)
-                
-                gmap_url = f"https://www.google.com/maps/search/{ap['name']}+温泉+ホテル"
-                st.link_button("📲 Googleマップで探す", gmap_url)
+                # --- ホテル情報 ---
+                with col2:
+                    st.markdown(f"**🏨 温泉・バイキング宿 ({num_people}名設定)**")
+                    if trip_type == "日帰り":
+                        st.info("日帰りプランのため不要")
+                    else:
+                        st.write("**【登録中のお気に入り】**")
+                        for h in ap["fav_hotels"]:
+                            st.write(f"・ {h}")
+                        
+                        # 人数条件を付与したじゃらんリンク
+                        jalan_person_url = f"https://www.jalan.net/uw/uwp3000/uwp3001.do?keyword={ap['name']}+温泉+バイキング&adultNum={num_people}"
+                        st.link_button(f"📲 じゃらんで空室確認 ({num_people}名)", jalan_person_url)
 
-        # --- Column 3: 天気情報 ---
-        with c3:
-            st.markdown("##### 🌤 現地天気")
-            tenki_url = f"https://tenki.jp/search/?keyword={ap['name']}"
-            st.link_button("📲 天気予報を確認", tenki_url)
+                # --- 天気情報 ---
+                with col3:
+                    st.markdown("**🌤 現地天気**")
+                    tenki_url = f"https://tenki.jp/search/?keyword={ap['name']}"
+                    st.link_button("📲 天気予報を確認", tenki_url)
+            
+            st.divider()
