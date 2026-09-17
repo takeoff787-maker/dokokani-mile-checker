@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 
 st.set_page_config(page_title="どこかにマイル 判定＆チェックツール", page_icon="✈️", layout="centered")
 
-# カスタムCSS
+# スタイル定義
 st.markdown("""
     <style>
     html {
@@ -39,33 +39,35 @@ st.markdown("""
         font-size: 12px;
         margin-bottom: 16px;
     }
-    /* クイックジャンプリンク表示 */
-    .quick-nav {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 6px;
-        margin: 10px 0 20px 0;
+    /* 空港選択枠 */
+    .airport-container {
+        border: 1px solid #334155;
+        background-color: #0f172a;
+        border-radius: 10px;
+        padding: 12px;
+        margin-bottom: 20px;
     }
-    .quick-nav a {
+    /* 空港行のレイアウト */
+    .airport-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 4px 0;
+    }
+    /* ジャンプボタン装飾 */
+    .jump-btn {
         background-color: #1e293b;
         color: #60a5fa !important;
         border: 1px solid #3b82f6;
-        padding: 4px 10px;
-        border-radius: 15px;
-        font-size: 12px;
+        padding: 2px 8px;
+        border-radius: 6px;
+        font-size: 11px;
         text-decoration: none;
-        font-weight: bold;
+        white-space: nowrap;
     }
-    .quick-nav a:hover {
+    .jump-btn:hover {
         background-color: #3b82f6;
         color: #ffffff !important;
-    }
-    /* 空港枠（カード風コンテナ） */
-    div[data-testid="stForm"] {
-        border: 1px solid #334155 !important;
-        background-color: #0f172a !important;
-        border-radius: 10px !important;
-        padding: 15px !important;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -84,7 +86,7 @@ st.markdown("""
 # 説明カード
 st.markdown("""
     <div class="info-box">
-        💡 <b>使い方:</b> 初期状態で全空港に☑が入っています。不要な空港は☑を外し、下のジャンプボタンから目的の空港へ直接移動できます。
+        💡 <b>使い方:</b> 不要な空港の☑を外し、各空港名の右にある「👇」ボタンで下のアコーディオンへ直接ジャンプできます。
     </div>
 """, unsafe_allow_html=True)
 
@@ -186,54 +188,50 @@ def get_status_tag(ap):
 
 selected_airports = []
 
-# --- 枠で囲んだ空港選択エリア ---
+# --- ⚙️ 候補空港選択（枠付きコンテナ） ---
 st.markdown("##### ⚙️ 候補空港選択")
 
-with st.form(key="airport_select_form", border=True):
-    cols = st.columns(2)
+st.markdown('<div class="airport-container">', unsafe_allow_html=True)
+
+cols = st.columns(2)
+
+for idx, ap in enumerate(AIRPORT_DB):
+    car_match = has_matching_car(ap, selected_models)
+    is_available = car_match or allow_other_car
     
-    for idx, ap in enumerate(AIRPORT_DB):
-        car_match = has_matching_car(ap, selected_models)
-        is_available = car_match or allow_other_car
-        
-        key_name = f"select_{ap['code']}"
-        if key_name not in st.session_state:
-            st.session_state[key_name] = is_available
+    key_name = f"select_{ap['code']}"
+    if key_name not in st.session_state:
+        st.session_state[key_name] = is_available
 
-        status_icon = get_status_tag(ap)
-        col_target = cols[idx % 2]
+    status_icon = get_status_tag(ap)
+    col_target = cols[idx % 2]
 
-        with col_target:
-            if is_available:
+    with col_target:
+        if is_available:
+            c1, c2 = st.columns([3, 1])
+            with c1:
                 label = f"{status_icon} {ap['name']}"
                 checked = st.checkbox(label, key=key_name)
                 if checked:
                     selected_airports.append(ap)
-            else:
-                st.caption(f"⚪ (希望車種なし) {ap['name']}")
+            with c2:
+                if st.session_state[key_name]:
+                    st.markdown(f'<a href="#airport-{ap["code"]}" class="jump-btn">👇</a>', unsafe_allow_html=True)
+        else:
+            st.caption(f"⚪ (希望車種なし) {ap['name']}")
 
-    st.form_submit_button("受け入れ態勢の判定を更新", use_container_width=True)
-
-# --- 🎯 ワンタップジャンプ（ショートカット目次） ---
-if selected_airports:
-    st.markdown("##### 🚀 選択中空港へ一発ジャンプ")
-    nav_html = '<div class="quick-nav">'
-    for ap in selected_airports:
-        status_icon = get_status_tag(ap)
-        nav_html += f'<a href="#airport-{ap["code"]}">{status_icon} {ap["name"]}</a>'
-    nav_html += '</div>'
-    st.markdown(nav_html, unsafe_allow_html=True)
+st.markdown('</div>', unsafe_allow_html=True)
 
 st.divider()
 
-# --- 詳細照会エリア ---
+# --- 📋 詳細照会エリア ---
 if selected_airports:
     st.markdown(f"### 📋 候補空港の空き確認 ({len(selected_airports)}件)")
 
     for ap in selected_airports:
         status_icon = get_status_tag(ap)
         
-        # ジャンプ先用アンカータグ
+        # ジャンプ先アンカー
         st.markdown(f'<div id="airport-{ap["code"]}"></div>', unsafe_allow_html=True)
         
         with st.expander(f"【{status_icon}】✈️ {ap['name']} ({ap['code']})", expanded=True):
@@ -265,7 +263,7 @@ if selected_airports:
 
                 st.link_button("🌤 天気予報を見る", f"https://tenki.jp/search/?keyword={ap['name']}")
 
-            # 各枠の右下に「▲ トップに戻る」ボタンを追加
+            # 各枠の右下に「▲ トップに戻る」ボタン
             st.markdown("""
                 <div style="text-align: right; margin-top: 10px;">
                     <a href="#top" style="text-decoration: none; font-size: 12px; background-color: #334155; color: #f8fafc; padding: 4px 12px; border-radius: 4px; font-weight: bold;">▲ トップに戻る</a>
