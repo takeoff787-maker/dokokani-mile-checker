@@ -25,15 +25,15 @@ with st.sidebar:
 
 # --- 空港＆店舗情報データベース ---
 AIRPORT_DB = [
-    {"code": "CTS", "name": "新千歳空港", "region": "北海道", "type": "times", "station_id": "PP28", "station_name": "タイムズカー新千歳空港店"},
-    {"code": "HKD", "name": "函館空港", "region": "北海道", "type": "times", "station_id": "PP29", "station_name": "タイムズカー函館空港店"},
-    {"code": "AOJ", "name": "青森空港", "region": "東北", "type": "rental", "station_id": "", "station_name": "※タイムズ非対応（dカーシェア/一般レンタカー推奨）"},
-    {"code": "KMQ", "name": "小松空港", "region": "北陸", "type": "times", "station_id": "PP30", "station_name": "タイムズカー小松空港店"},
-    {"code": "HIJ", "name": "広島空港", "region": "中国", "type": "times", "station_id": "PP31", "station_name": "タイムズカー広島空港店"},
-    {"code": "TKM", "name": "高松空港", "region": "四国", "type": "times", "station_id": "PP32", "station_name": "タイムズカー高松空港店"},
-    {"code": "MYJ", "name": "松山空港", "region": "四国", "type": "times", "station_id": "PP33", "station_name": "タイムズカー松山空港店"},
-    {"code": "FUK", "name": "福岡空港", "region": "九州", "type": "times", "station_id": "PP34", "station_name": "タイムズカー福岡空港店"},
-    {"code": "KOJ", "name": "鹿児島空港", "region": "九州", "type": "times", "station_id": "PP35", "station_name": "タイムズカー鹿児島空港店"}
+    {"code": "CTS", "name": "新千歳空港", "region": "北海道", "type": "times", "keyword": "新千歳空港"},
+    {"code": "HKD", "name": "函館空港", "region": "北海道", "type": "times", "keyword": "函館空港"},
+    {"code": "AOJ", "name": "青森空港", "region": "東北", "type": "rental", "keyword": "青森空港"},
+    {"code": "KMQ", "name": "小松空港", "region": "北陸", "type": "times", "keyword": "小松空港"},
+    {"code": "HIJ", "name": "広島空港", "region": "中国", "type": "times", "keyword": "広島空港"},
+    {"code": "TKM", "name": "高松空港", "region": "四国", "type": "times", "keyword": "高松空港"},
+    {"code": "MYJ", "name": "松山空港", "region": "四国", "type": "times", "keyword": "松山空港"},
+    {"code": "FUK", "name": "福岡空港", "region": "九州", "type": "times", "keyword": "福岡空港"},
+    {"code": "KOJ", "name": "鹿児島空港", "region": "九州", "type": "times", "keyword": "鹿児島空港"}
 ]
 
 if search_btn or True:
@@ -41,7 +41,7 @@ if search_btn or True:
     end_dt = datetime.combine(end_date, end_time)
     
     st.success(f"📅 【設定日時】{start_dt.strftime('%Y/%m/%d %H:%M')} 〜 {end_dt.strftime('%m/%d %H:%M')}")
-    st.write("各空港の車・宿・天気の条件を確認してください。ボタンを押すと各サービスのリアルタイム空車・予約画面を開きます。")
+    st.write("各空港の条件を確認してください。ボタンを押すとそれぞれの公式予約・確認画面が開きます。")
     
     for ap in AIRPORT_DB:
         with st.expander(f"✈️ 【{ap['name']} ({ap['code']})】 - {ap['region']}", expanded=True):
@@ -49,10 +49,11 @@ if search_btn or True:
             
             with col1:
                 st.markdown("**🚗 車移動（タイムズ / レンタカー）**")
-                st.write(ap["station_name"])
                 if ap["type"] == "times":
-                    direct_url = f"https://share.timescar.jp/view/station/detail.jsp?scd={ap['station_id']}"
-                    st.link_button("📲 タイムズ空車状況・予約画面へ", direct_url)
+                    st.write(f"タイムズカー {ap['name']}周辺")
+                    # タイムズカー ステーション検索URL（スマホ・PC共通で動くキーワード検索）
+                    times_search_url = f"https://share.timescar.jp/view/station/list.jsp?keyword={ap['keyword']}"
+                    st.link_button("📲 タイムズ店舗・空車検索へ", times_search_url)
                 else:
                     st.warning("タイムズ非対応エリア")
                     st.link_button("📲 dカーシェア / レンタカー検索", "https://dcarshare.docomo.ne.jp/")
