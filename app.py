@@ -1,5 +1,6 @@
 import streamlit as st
 from datetime import datetime, timedelta
+import urllib.parse
 
 st.set_page_config(page_title="どこかにマイル 判定＆チェックツール", page_icon="✈️", layout="centered")
 
@@ -99,7 +100,7 @@ st.markdown("""
 # 説明カード
 st.markdown("""
     <div class="info-box">
-        💡 <b>使い方:</b> 各空港のステーションと配備車種ごとに「空車☑」をチェックできます。空車があった空港は上部のボタンが🟢に変わります。
+        💡 <b>使い方:</b> 各空港の駐車場・店舗ステーションと配備車種ごとに「空車☑」をチェックできます。空車があった空港は上部のボタンが🟢に変わります。
     </div>
 """, unsafe_allow_html=True)
 
@@ -131,12 +132,12 @@ with st.sidebar:
     
     allow_other_car = st.checkbox("タイムズに希望車種がなければ dカーシェア/一般レンタカーも検討", value=False)
 
-# --- 空港データベース（ステーション＆詳細車種情報） ---
+# --- 空港データベース（空港直結・駐車場ステーションを正しく網羅） ---
 AIRPORT_DB = [
-    {"code": "CTS", "name": "新千歳空港", "short_name": "新千歳", "type": "times", "stations": [{"name": "新千歳空港店（送迎発着）", "models": ["C-HR", "CX-30", "MAZDA3", "ノア", "ヴォクシー", "ヤリスクロス"]}, {"name": "新千歳空港A駐車場ステーション", "models": ["ヤリスクロス", "フィット", "ヤリス"]}], "fav_hotels": ["定山渓万世閣", "登別万世閣"]},
+    {"code": "CTS", "name": "新千歳空港", "short_name": "新千歳", "type": "times", "stations": [{"name": "新千歳空港A駐車場ステーション", "models": ["ヤリスクロス", "フィット", "ヤリス"]}, {"name": "新千歳空港B駐車場ステーション", "models": ["ヤリスクロス", "ノート", "フィット"]}, {"name": "新千歳空港店（送迎発着）", "models": ["C-HR", "CX-30", "MAZDA3", "ノア", "ヴォクシー", "ヤリスクロス"]}], "fav_hotels": ["定山渓万世閣", "登別万世閣"]},
     {"code": "HKD", "name": "函館空港", "short_name": "函館", "type": "times", "stations": [{"name": "函館空港駐車場ステーション", "models": ["ヤリスクロス", "フィット", "ノート", "ヤリス"]}], "fav_hotels": ["湯の川温泉 ホテル万惣"]},
-    {"code": "AKJ", "name": "旭川空港", "short_name": "旭川", "type": "times", "stations": [{"name": "旭川空港前店ステーション", "models": ["ヤリスクロス", "フィット", "ノア", "ヤリス"]}], "fav_hotels": ["層雲峡観光ホテル"]},
-    {"code": "MMB", "name": "女満別空港", "short_name": "女満別", "type": "times", "stations": [{"name": "女満別空港前店ステーション", "models": ["ヤリスクロス", "フィット", "ヤリス"]}], "fav_hotels": ["網走観光ホテル"]},
+    {"code": "AKJ", "name": "旭川空港", "short_name": "旭川", "type": "times", "stations": [{"name": "旭川空港ターミナル前ステーション", "models": ["ヤリスクロス", "フィット", "ヤリス"]}, {"name": "旭川空港前店ステーション", "models": ["ヤリスクロス", "フィット", "ノア", "ヤリス"]}], "fav_hotels": ["層雲峡観光ホテル"]},
+    {"code": "MMB", "name": "女満別空港", "short_name": "女満別", "type": "times", "stations": [{"name": "女満別空港駐車場ステーション", "models": ["ヤリスクロス", "フィット", "ヤリス"]}, {"name": "女満別空港前店ステーション", "models": ["ヤリスクロス", "フィット", "ヤリス"]}], "fav_hotels": ["網走観光ホテル"]},
     {"code": "OBO", "name": "帯広空港", "short_name": "帯広", "type": "times", "stations": [{"name": "帯広空港前店ステーション", "models": ["ヤリスクロス", "フィット", "ヤリス"]}], "fav_hotels": ["十勝川温泉 第一ホテル"]},
     {"code": "KUH", "name": "釧路空港", "short_name": "釧路", "type": "times", "stations": [{"name": "釧路空港前店ステーション", "models": ["ヤリスクロス", "フィット", "ヤリス"]}], "fav_hotels": ["阿寒湖温泉 あかん遊久の里鶴雅"]},
     {"code": "AOJ", "name": "青森空港", "short_name": "青森", "type": "rental", "stations": [], "fav_hotels": ["浅虫温泉 宿屋つばき"]},
@@ -162,7 +163,7 @@ AIRPORT_DB = [
     {"code": "KKJ", "name": "北九州空港", "short_name": "北九州", "type": "times", "stations": [{"name": "北九州空港前ステーション", "models": ["ヤリスクロス", "フィット", "ヤリス"]}], "fav_hotels": ["ホテルクラウンパレス小倉"]},
     {"code": "OIT", "name": "大分空港", "short_name": "大分", "type": "times", "stations": [{"name": "大分空港前ステーション", "models": ["CX-30", "ヤリスクロス", "フィット", "ヤリス"]}], "fav_hotels": ["別府温泉 杉乃井ホテル"]},
     {"code": "NGS", "name": "長崎空港", "short_name": "長崎", "type": "times", "stations": [{"name": "長崎空港前ステーション", "models": ["ヤリスクロス", "フィット", "ヤリス"]}], "fav_hotels": ["雲仙温泉 雲仙宮崎旅館"]},
-    {"code": "KMJ", "name": "熊本空港", "short_name": "熊本", "type": "times", "stations": [{"name": "熊本空港前ステーション", "models": ["CX-30", "ヤリスクロス", "フィット", "ヤリス"]}], "fav_hotels": ["黒川温泉 ふじ屋"]},
+    {"code": "KMJ", "name": "熊本空港", "short_name": "熊本", "type": "times", "stations": [{"name": "阿蘇くまもと空港駐車場（P3）ステーション", "models": ["CX-30", "ヤリスクロス", "フィット", "ヤリス"]}, {"name": "熊本空港前店ステーション", "models": ["CX-30", "ヤリスクロス", "フィット", "ヤリス"]}], "fav_hotels": ["黒川温泉 ふじ屋"]},
     {"code": "KMI", "name": "宮崎空港", "short_name": "宮崎", "type": "times", "stations": [{"name": "宮崎空港前ステーション", "models": ["ヤリスクロス", "フィット", "ヤリス"]}], "fav_hotels": ["シェラトン・グランデ"]},
     {"code": "KOJ", "name": "鹿児島空港", "short_name": "鹿児島", "type": "times", "stations": [{"name": "鹿児島空港前ステーション", "models": ["ヤリスクロス", "フィット", "ノート", "ヤリス"]}], "fav_hotels": ["霧島温泉 霧島ホテル"]},
     {"code": "OKA", "name": "那覇空港", "short_name": "那覇", "type": "times", "stations": [{"name": "那覇空港店（送迎あり）ステーション", "models": ["C-HR", "CX-30", "MAZDA3", "ノア", "ヴォクシー", "ヤリスクロス"]}], "fav_hotels": ["サザンビーチホテル"]},
@@ -278,12 +279,14 @@ if selected_airports:
                 if trip_type == "日帰り":
                     st.info("日帰りのため宿不要")
                 else:
-                    jalan_url = f"https://www.jalan.net/uw/uwp3000/uwp3001.do?keyword={ap['name']}+温泉+バイキング&adultNum={num_people}"
+                    jalan_url = f"https://www.jalan.net/uw/uwp3000/uwp3001.do?keyword={urllib.parse.quote(ap['name'])}+温泉+バイキング&adultNum={num_people}"
                     st.link_button(f"📲 じゃらんで宿検索", jalan_url)
                     for h_idx, h_name in enumerate(ap["fav_hotels"]):
                         st.checkbox(f"☑ {h_name} 空室あり", key=f"hotel_chk_{ap['code']}_{h_idx}")
 
-                st.link_button("🌤 天気予報を見る", f"https://tenki.jp/search/?keyword={ap['name']}")
+                # Yahoo!天気への直接検索リンク（確実に検索結果が開きます）
+                yahoo_weather_url = f"https://search.yahoo.co.jp/realtime/search?p={urllib.parse.quote(ap['name'] + ' 天気')}"
+                st.link_button("🌤 Yahoo!天気で検索", yahoo_weather_url)
 
             st.markdown("""
                 <div style="text-align: right; margin-top: 10px;">
