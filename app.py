@@ -50,10 +50,10 @@ if search_btn or True:
             with col1:
                 st.markdown("**🚗 車移動（タイムズ / レンタカー）**")
                 if ap["type"] == "times":
-                    st.write(f"タイムズカー {ap['name']}周辺")
-                    # タイムズカー ステーション検索URL（スマホ・PC共通で動くキーワード検索）
-                    times_search_url = f"https://share.timescar.jp/view/station/list.jsp?keyword={ap['keyword']}"
-                    st.link_button("📲 タイムズ店舗・空車検索へ", times_search_url)
+                    st.write(f"タイムズカー {ap['name']}周辺エリア")
+                    # スマホ対応のステーション一覧検索URL（空港周辺の全ステーションを表示）
+                    times_url = f"https://share.timescar.jp/sp/view/station/list.jsp?keyword={ap['keyword']}"
+                    st.link_button("📲 周辺の全ステーション・空車一覧へ", times_url)
                 else:
                     st.warning("タイムズ非対応エリア")
                     st.link_button("📲 dカーシェア / レンタカー検索", "https://dcarshare.docomo.ne.jp/")
