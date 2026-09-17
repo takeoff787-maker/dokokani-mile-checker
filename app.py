@@ -14,10 +14,10 @@ with st.sidebar:
     end_date = st.date_input("帰着日", default_start + timedelta(days=1))
     end_time = st.time_input("帰着時間", datetime.strptime("18:00", "%H:%M").time())
     
-    st.subheader("🚗 車両条件（タイムズカー）")
+    st.subheader("🚗 車両条件（タイムズカー希望車種）")
     times_car_models = st.multiselect(
-        "希望車種",
-        ["C-HR", "CX-30", "MAZDA3", "ヤリスクロス", "ノア"],
+        "希望車種（一次判定用）",
+        ["C-HR", "CX-30", "MAZDA3", "ヤリスクロス", "ノア", "ヴォクシー", "フィット/ヤリス等"],
         default=["C-HR", "CX-30", "MAZDA3", "ヤリスクロス"]
     )
     
@@ -25,15 +25,51 @@ with st.sidebar:
 
 # --- 空港＆店舗情報データベース ---
 AIRPORT_DB = [
-    {"code": "CTS", "name": "新千歳空港", "region": "北海道", "type": "times", "keyword": "新千歳空港"},
-    {"code": "HKD", "name": "函館空港", "region": "北海道", "type": "times", "keyword": "函館空港"},
-    {"code": "AOJ", "name": "青森空港", "region": "東北", "type": "rental", "keyword": "青森空港"},
-    {"code": "KMQ", "name": "小松空港", "region": "北陸", "type": "times", "keyword": "小松空港"},
-    {"code": "HIJ", "name": "広島空港", "region": "中国", "type": "times", "keyword": "広島空港"},
-    {"code": "TKM", "name": "高松空港", "region": "四国", "type": "times", "keyword": "高松空港"},
-    {"code": "MYJ", "name": "松山空港", "region": "四国", "type": "times", "keyword": "松山空港"},
-    {"code": "FUK", "name": "福岡空港", "region": "九州", "type": "times", "keyword": "福岡空港"},
-    {"code": "KOJ", "name": "鹿児島空港", "region": "九州", "type": "times", "keyword": "鹿児島空港"}
+    {
+        "code": "CTS", "name": "新千歳空港", "region": "北海道", "type": "times",
+        "models": ["C-HR", "CX-30", "ヤリスクロス", "ノア", "ヴォクシー", "フィット"],
+        "note": "空港内および周辺ステーション複数あり。人気車種の配備数多め。"
+    },
+    {
+        "code": "HKD", "name": "函館空港", "region": "北海道", "type": "times",
+        "models": ["ヤリスクロス", "フィット", "ノート", "スイフト"],
+        "note": "空港直結ステーションあり。SUV枠はヤリスクロス中心。"
+    },
+    {
+        "code": "AOJ", "name": "青森空港", "region": "東北", "type": "rental",
+        "models": ["タイムズカー非対応（レンタカー店舗あり）"],
+        "note": "⚠️ タイムズカーシェアのステーションはありません。dカーシェアやタイムズカーレンタルをご利用ください。"
+    },
+    {
+        "code": "KMQ", "name": "小松空港", "region": "北陸", "type": "times",
+        "models": ["CX-30", "ヤリスクロス", "フィット", "ソリオ"],
+        "note": "小松空港駐車場ステーションあり。"
+    },
+    {
+        "code": "HIJ", "name": "広島空港", "region": "中国", "type": "times",
+        "models": ["MAZDA3", "CX-30", "ヤリスクロス", "ノア"],
+        "note": "広島空港前ステーションあり。マツダ車（MAZDA3, CX-30）の配備多数。"
+    },
+    {
+        "code": "TKM", "name": "高松空港", "region": "四国", "type": "times",
+        "models": ["ヤリスクロス", "フィット", "ノート"],
+        "note": "高松空港前ステーションあり。"
+    },
+    {
+        "code": "MYJ", "name": "松山空港", "region": "四国", "type": "times",
+        "models": ["CX-30", "ヤリスクロス", "フィット"],
+        "note": "松山空港周辺ステーションあり。"
+    },
+    {
+        "code": "FUK", "name": "福岡空港", "region": "九州", "type": "times",
+        "models": ["C-HR", "CX-30", "MAZDA3", "ヤリスクロス", "ノア", "ヴォクシー"],
+        "note": "国内線/国際線周辺に複数ステーションあり。車種豊富。"
+    },
+    {
+        "code": "KOJ", "name": "鹿児島空港", "region": "九州", "type": "times",
+        "models": ["ヤリスクロス", "フィット", "ノート", "ソリオ"],
+        "note": "鹿児島空港前ステーションあり。"
+    }
 ]
 
 if search_btn or True:
@@ -41,22 +77,41 @@ if search_btn or True:
     end_dt = datetime.combine(end_date, end_time)
     
     st.success(f"📅 【設定日時】{start_dt.strftime('%Y/%m/%d %H:%M')} 〜 {end_dt.strftime('%m/%d %H:%M')}")
-    st.write("各空港の条件を確認してください。ボタンを押すとそれぞれの公式予約・確認画面が開きます。")
     
     for ap in AIRPORT_DB:
-        with st.expander(f"✈️ 【{ap['name']} ({ap['code']})】 - {ap['region']}", expanded=True):
+        matched_models = [m for m in times_car_models if m in ap["models"]]
+        has_match = len(matched_models) > 0
+        
+        status_tag = "🟢 希望車種配備あり" if has_match else "🟡 コンパクト/他車種のみ"
+        if ap["type"] == "rental":
+            status_tag = "🔴 カーシェア非対応（レンタカー専業）"
+
+        with st.expander(f"✈️ 【{ap['name']} ({ap['code']})】 - {status_tag}", expanded=True):
             col1, col2, col3 = st.columns(3)
             
             with col1:
-                st.markdown("**🚗 車移動（タイムズ / レンタカー）**")
+                st.markdown("**🚗 車両・配備ステーション情報**")
+                st.caption(ap["note"])
+                
                 if ap["type"] == "times":
-                    st.write(f"タイムズカー {ap['name']}周辺エリア")
-                    # スマホ対応のステーション一覧検索URL（空港周辺の全ステーションを表示）
-                    times_url = f"https://share.timescar.jp/sp/view/station/list.jsp?keyword={ap['keyword']}"
-                    st.link_button("📲 周辺の全ステーション・空車一覧へ", times_url)
+                    st.write("**【配備されている主な車種】**")
+                    st.write(", ".join(ap["models"]))
+                    
+                    if has_match:
+                        st.success(f"希望一致: {', '.join(matched_models)}")
+                    else:
+                        st.warning("指定された希望車種の配備が少ない/ありません")
+                    
+                    st.markdown("---")
+                    # マイページ直行リンク
+                    mypage_url = "https://share.timescar.jp/view/sp/member/mypage.jsp"
+                    st.link_button("📲 タイムズカー マイページ（空車照会）へ", mypage_url)
+                    st.caption("※マイページの「ステーション検索」で「" + ap['name'] + "」を入力")
                 else:
-                    st.warning("タイムズ非対応エリア")
-                    st.link_button("📲 dカーシェア / レンタカー検索", "https://dcarshare.docomo.ne.jp/")
+                    st.error("タイムズカーシェアのステーションはありません")
+                    st.write("**【代替手段】**")
+                    st.link_button("📲 dカーシェアで空車検索", "https://dcarshare.docomo.ne.jp/")
+                    st.link_button("📲 タイムズカーレンタル（公式）", "https://rental.timescar.jp/")
 
             with col2:
                 st.markdown("**🏨 温泉＆バイキング宿**")
