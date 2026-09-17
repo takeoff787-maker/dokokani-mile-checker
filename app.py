@@ -1,40 +1,79 @@
 import streamlit as st
 from datetime import datetime, timedelta
 
-st.set_page_config(page_title="どこかにマイル 条件クリア空港 判定アプリ", page_icon="✈️", layout="wide")
+st.set_page_config(page_title="どこかにマイル 判定＆チェックツール", page_icon="✈️", layout="centered")
 
-# スマホ画面でも強制的に【横3列】を固定するカスタムCSS
+# 一番初めのデザイン（赤いヘッダー＆カード風スタイル）を模したカスタムCSS
 st.markdown("""
     <style>
-    .airport-grid {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 6px;
+    /* 全体背景 */
+    .stApp {
+        background-color: #f4f6f8;
+    }
+    /* 赤色ヘッダー */
+    .header-card {
+        background: linear-gradient(135deg, #cc0000 0%, #990000 100%);
+        color: white;
+        padding: 20px;
+        border-radius: 12px;
+        margin-bottom: 15px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    .header-card h1 {
+        color: white !important;
+        font-size: 22px !important;
+        font-weight: bold;
+        margin: 0 0 8px 0;
+    }
+    .header-card p {
+        color: #f0f0f0;
+        font-size: 13px;
+        margin: 0;
+    }
+    /* 説明用カード */
+    .info-card {
+        background-color: #eef5ff;
+        border: 1px solid #cce0ff;
+        color: #1a5296;
+        padding: 12px 15px;
+        border-radius: 8px;
+        font-size: 13px;
         margin-bottom: 20px;
     }
-    .airport-card {
-        background-color: #1e222d;
-        padding: 6px 8px;
-        border-radius: 6px;
-        font-size: 12px;
-        border: 1px solid #313745;
+    /* 空港選択カード */
+    .airport-container {
+        background-color: white;
+        padding: 15px;
+        border-radius: 10px;
+        border: 1px solid #e0e0e0;
+        margin-bottom: 20px;
     }
-    .disabled-card {
-        opacity: 0.4;
-        background-color: #14171f;
+    /* チェックボックス文字サイズ調整 */
+    div.stCheckbox > label {
+        font-size: 14px !important;
+        color: #333333 !important;
     }
     </style>
 """, unsafe_allow_html=True)
 
-st.title("✈️ どこかにマイル 条件クリア空港 判定アプリ")
+# 赤いメインヘッダー
+st.markdown("""
+    <div class="header-card">
+        <h1>✈️ どこかにマイル 判定＆チェックツール</h1>
+        <p>羽田発・車シェア空き・バイキング/温泉宿・天気を一括チェック</p>
+    </div>
+""", unsafe_allow_html=True)
 
-if "custom_hotels" not in st.session_state:
-    st.session_state.custom_hotels = {}
+# 使い方案内
+st.markdown("""
+    <div class="info-card">
+        💡 <b>使い方:</b> 初期状態ではすべての空港に☑が入っています。条件に合わない空港や、確認してNGだった空港はチェックを外して候補から消し込んでください。
+    </div>
+""", unsafe_allow_html=True)
 
 # --- サイドバー設定 ---
 with st.sidebar:
-    st.header("⚙️ 初期設定・基本条件")
-    
+    st.header("⚙️ 条件設定")
     num_people = st.number_input("利用人数（名）", min_value=1, max_value=6, value=1, step=1)
     trip_type = st.radio("旅行スタイル", ["1泊2日", "2泊3日", "日帰り"], index=0)
     
@@ -53,48 +92,48 @@ with st.sidebar:
 
     st.subheader("🚗 車両・配備条件")
     selected_models = st.multiselect(
-        "希望車種（タイムズ）",
+        "優先カーシェア車種",
         ["C-HR", "CX-30", "MAZDA3", "ヤリスクロス", "ノア", "ヴォクシー", "フィット", "ヤリス", "ノート"],
         default=["C-HR", "CX-30", "MAZDA3", "ヤリスクロス"]
     )
     
-    allow_other_car = st.checkbox("タイムズに希望車種がなければ dカーシェア/一般レンタカーも選択肢に含める", value=False)
+    allow_other_car = st.checkbox("タイムズに希望車種がなければ dカーシェア/一般レンタカーも検討", value=False)
 
 # --- 空港データベース ---
 AIRPORT_DB = [
-    {"code": "CTS", "name": "新千歳", "type": "times", "stations": [{"name": "新千歳空港店（送迎）", "models": ["C-HR", "CX-30", "MAZDA3", "ノア", "ヴォクシー"]}, {"name": "新千歳空港A駐車場", "models": ["ヤリスクロス", "フィット"]}], "fav_hotels": ["定山渓万世閣", "登別万世閣"]},
-    {"code": "HKD", "name": "函館", "type": "times", "stations": [{"name": "函館空港駐車場", "models": ["ヤリスクロス", "フィット", "ノート"]}], "fav_hotels": ["湯の川温泉 ホテル万惣"]},
-    {"code": "AKJ", "name": "旭川", "type": "times", "stations": [{"name": "旭川空港前店", "models": ["ヤリスクロス", "フィット", "ノア"]}], "fav_hotels": ["層雲峡観光ホテル"]},
-    {"code": "MMB", "name": "女満別", "type": "times", "stations": [{"name": "女満別空港前店", "models": ["ヤリスクロス", "フィット"]}], "fav_hotels": ["網走観光ホテル"]},
-    {"code": "OBO", "name": "帯広", "type": "times", "stations": [{"name": "帯広空港前店", "models": ["ヤリスクロス", "フィット"]}], "fav_hotels": ["十勝川温泉 第一ホテル"]},
-    {"code": "KUH", "name": "釧路", "type": "times", "stations": [{"name": "釧路空港前店", "models": ["ヤリスクロス", "フィット"]}], "fav_hotels": ["阿寒湖温泉 あかん遊久の里鶴雅"]},
-    {"code": "AOJ", "name": "青森", "type": "rental", "stations": [], "fav_hotels": ["浅虫温泉 宿屋つばき"]},
-    {"code": "MSJ", "name": "三沢", "type": "rental", "stations": [], "fav_hotels": ["星野リゾート 青森屋"]},
-    {"code": "AXT", "name": "秋田", "type": "times", "stations": [{"name": "秋田空港駐車場", "models": ["ヤリスクロス", "フィット"]}], "fav_hotels": ["男鹿温泉 ホテルきららか"]},
-    {"code": "GAJ", "name": "山形", "type": "times", "stations": [{"name": "山形空港前", "models": ["フィット", "ヤリス"]}], "fav_hotels": ["蔵王温泉 高見屋"]},
-    {"code": "HNA", "name": "花巻", "type": "times", "stations": [{"name": "花巻空港前", "models": ["ヤリスクロス", "フィット"]}], "fav_hotels": ["花巻温泉 ホテル千秋閣"]},
-    {"code": "KMQ", "name": "小松", "type": "times", "stations": [{"name": "小松空港第一駐車場", "models": ["CX-30", "ヤリスクロス", "フィット"]}], "fav_hotels": ["加賀温泉郷 瑠璃光"]},
-    {"code": "OKJ", "name": "岡山", "type": "times", "stations": [{"name": "岡山空港前", "models": ["CX-30", "ヤリスクロス", "フィット"]}], "fav_hotels": ["湯郷温泉 季譜の里"]},
-    {"code": "HIJ", "name": "広島", "type": "times", "stations": [{"name": "広島空港前", "models": ["MAZDA3", "CX-30", "ヤリスクロス", "ノア"]}], "fav_hotels": ["宮島温泉 錦水館"]},
-    {"code": "IZO", "name": "出雲", "type": "times", "stations": [{"name": "出雲空港前", "models": ["ヤリスクロス", "フィット"]}], "fav_hotels": ["玉造温泉 佳翠苑皆美"]},
-    {"code": "UBJ", "name": "山口宇部", "type": "times", "stations": [{"name": "山口宇部空港前", "models": ["ヤリスクロス", "フィット"]}], "fav_hotels": ["湯田温泉 松田屋ホテル"]},
-    {"code": "TKM", "name": "高松", "type": "times", "stations": [{"name": "高松空港前", "models": ["ヤリスクロス", "フィット", "ノート"]}], "fav_hotels": ["琴平温泉 琴参閣"]},
-    {"code": "MYJ", "name": "松山", "type": "times", "stations": [{"name": "松山空港前", "models": ["CX-30", "ヤリスクロス", "フィット"]}], "fav_hotels": ["道後温泉 ふなや"]},
-    {"code": "TKS", "name": "徳島", "type": "times", "stations": [{"name": "徳島空港前", "models": ["ヤリスクロス", "フィット"]}], "fav_hotels": ["鳴門温泉 アオアヲナルトリゾート"]},
-    {"code": "KCZ", "name": "高知", "type": "times", "stations": [{"name": "高知空港前", "models": ["ヤリスクロス", "フィット"]}], "fav_hotels": ["城西館"]},
-    {"code": "FUK", "name": "福岡", "type": "times", "stations": [{"name": "福岡空港国内線前", "models": ["C-HR", "CX-30", "MAZDA3", "ノア"]}, {"name": "福岡空港国際線前", "models": ["ヤリスクロス", "ヴォクシー", "フィット"]}], "fav_hotels": ["原鶴温泉 泰泉閣"]},
-    {"code": "KKJ", "name": "北九州", "type": "times", "stations": [{"name": "北九州空港前", "models": ["ヤリスクロス", "フィット"]}], "fav_hotels": ["ホテルクラウンパレス小倉"]},
-    {"code": "OIT", "name": "大分", "type": "times", "stations": [{"name": "大分空港前", "models": ["CX-30", "ヤリスクロス", "フィット"]}], "fav_hotels": ["別府温泉 杉乃井ホテル"]},
-    {"code": "NGS", "name": "長崎", "type": "times", "stations": [{"name": "長崎空港前", "models": ["ヤリスクロス", "フィット"]}], "fav_hotels": ["雲仙温泉 雲仙宮崎旅館"]},
-    {"code": "KMJ", "name": "熊本", "type": "times", "stations": [{"name": "熊本空港前", "models": ["CX-30", "ヤリスクロス", "フィット"]}], "fav_hotels": ["黒川温泉 ふじ屋"]},
-    {"code": "KMI", "name": "宮崎", "type": "times", "stations": [{"name": "宮崎空港前", "models": ["ヤリスクロス", "フィット"]}], "fav_hotels": ["シェラトン・グランデ"]},
-    {"code": "KOJ", "name": "鹿児島", "type": "times", "stations": [{"name": "鹿児島空港前", "models": ["ヤリスクロス", "フィット", "ノート"]}], "fav_hotels": ["霧島温泉 霧島ホテル"]},
-    {"code": "OKA", "name": "那覇", "type": "times", "stations": [{"name": "那覇空港店（送迎あり）", "models": ["C-HR", "CX-30", "MAZDA3", "ノア", "ヴォクシー"]}], "fav_hotels": ["サザンビーチホテル"]},
-    {"code": "MMY", "name": "宮古", "type": "times", "stations": [{"name": "宮古空港前", "models": ["ヤリスクロス", "フィット"]}], "fav_hotels": ["シギラベイサイドスイート"]},
-    {"code": "ISG", "name": "新石垣", "type": "times", "stations": [{"name": "石垣空港前", "models": ["ヤリスクロス", "フィット"]}], "fav_hotels": ["フサキビーチリゾート"]}
+    {"code": "CTS", "name": "新千歳空港", "type": "times", "stations": [{"name": "新千歳空港店（送迎）", "models": ["C-HR", "CX-30", "MAZDA3", "ノア", "ヴォクシー"]}, {"name": "新千歳空港A駐車場", "models": ["ヤリスクロス", "フィット"]}], "fav_hotels": ["定山渓万世閣", "登別万世閣"]},
+    {"code": "HKD", "name": "函館空港", "type": "times", "stations": [{"name": "函館空港駐車場", "models": ["ヤリスクロス", "フィット", "ノート"]}], "fav_hotels": ["湯の川温泉 ホテル万惣"]},
+    {"code": "AKJ", "name": "旭川空港", "type": "times", "stations": [{"name": "旭川空港前店", "models": ["ヤリスクロス", "フィット", "ノア"]}], "fav_hotels": ["層雲峡観光ホテル"]},
+    {"code": "MMB", "name": "女満別空港", "type": "times", "stations": [{"name": "女満別空港前店", "models": ["ヤリスクロス", "フィット"]}], "fav_hotels": ["網走観光ホテル"]},
+    {"code": "OBO", "name": "帯広空港", "type": "times", "stations": [{"name": "帯広空港前店", "models": ["ヤリスクロス", "フィット"]}], "fav_hotels": ["十勝川温泉 第一ホテル"]},
+    {"code": "KUH", "name": "釧路空港", "type": "times", "stations": [{"name": "釧路空港前店", "models": ["ヤリスクロス", "フィット"]}], "fav_hotels": ["阿寒湖温泉 あかん遊久の里鶴雅"]},
+    {"code": "AOJ", "name": "青森空港", "type": "rental", "stations": [], "fav_hotels": ["浅虫温泉 宿屋つばき"]},
+    {"code": "MSJ", "name": "三沢空港", "type": "rental", "stations": [], "fav_hotels": ["星野リゾート 青森屋"]},
+    {"code": "AXT", "name": "秋田空港", "type": "times", "stations": [{"name": "秋田空港駐車場", "models": ["ヤリスクロス", "フィット"]}], "fav_hotels": ["男鹿温泉 ホテルきららか"]},
+    {"code": "GAJ", "name": "山形空港", "type": "times", "stations": [{"name": "山形空港前", "models": ["フィット", "ヤリス"]}], "fav_hotels": ["蔵王温泉 高見屋"]},
+    {"code": "HNA", "name": "花巻空港", "type": "times", "stations": [{"name": "花巻空港前", "models": ["ヤリスクロス", "フィット"]}], "fav_hotels": ["花巻温泉 ホテル千秋閣"]},
+    {"code": "KMQ", "name": "小松空港", "type": "times", "stations": [{"name": "小松空港第一駐車場", "models": ["CX-30", "ヤリスクロス", "フィット"]}], "fav_hotels": ["加賀温泉郷 瑠璃光"]},
+    {"code": "OKJ", "name": "岡山空港", "type": "times", "stations": [{"name": "岡山空港前", "models": ["CX-30", "ヤリスクロス", "フィット"]}], "fav_hotels": ["湯郷温泉 季譜の里"]},
+    {"code": "HIJ", "name": "広島空港", "type": "times", "stations": [{"name": "広島空港前", "models": ["MAZDA3", "CX-30", "ヤリスクロス", "ノア"]}], "fav_hotels": ["宮島温泉 錦水館"]},
+    {"code": "IZO", "name": "出雲空港", "type": "times", "stations": [{"name": "出雲空港前", "models": ["ヤリスクロス", "フィット"]}], "fav_hotels": ["玉造温泉 佳翠苑皆美"]},
+    {"code": "UBJ", "name": "山口宇部空港", "type": "times", "stations": [{"name": "山口宇部空港前", "models": ["ヤリスクロス", "フィット"]}], "fav_hotels": ["湯田温泉 松田屋ホテル"]},
+    {"code": "TKM", "name": "高松空港", "type": "times", "stations": [{"name": "高松空港前", "models": ["ヤリスクロス", "フィット", "ノート"]}], "fav_hotels": ["琴平温泉 琴参閣"]},
+    {"code": "MYJ", "name": "松山空港", "type": "times", "stations": [{"name": "松山空港前", "models": ["CX-30", "ヤリスクロス", "フィット"]}], "fav_hotels": ["道後温泉 ふなや"]},
+    {"code": "TKS", "name": "徳島空港", "type": "times", "stations": [{"name": "徳島空港前", "models": ["ヤリスクロス", "フィット"]}], "fav_hotels": ["鳴門温泉 アオアヲナルトリゾート"]},
+    {"code": "KCZ", "name": "高知空港", "type": "times", "stations": [{"name": "高知空港前", "models": ["ヤリスクロス", "フィット"]}], "fav_hotels": ["城西館"]},
+    {"code": "FUK", "name": "福岡空港", "type": "times", "stations": [{"name": "福岡空港国内線前", "models": ["C-HR", "CX-30", "MAZDA3", "ノア"]}, {"name": "福岡空港国際線前", "models": ["ヤリスクロス", "ヴォクシー", "フィット"]}], "fav_hotels": ["原鶴温泉 泰泉閣"]},
+    {"code": "KKJ", "name": "北九州空港", "type": "times", "stations": [{"name": "北九州空港前", "models": ["ヤリスクロス", "フィット"]}], "fav_hotels": ["ホテルクラウンパレス小倉"]},
+    {"code": "OIT", "name": "大分空港", "type": "times", "stations": [{"name": "大分空港前", "models": ["CX-30", "ヤリスクロス", "フィット"]}], "fav_hotels": ["別府温泉 杉乃井ホテル"]},
+    {"code": "NGS", "name": "長崎空港", "type": "times", "stations": [{"name": "長崎空港前", "models": ["ヤリスクロス", "フィット"]}], "fav_hotels": ["雲仙温泉 雲仙宮崎旅館"]},
+    {"code": "KMJ", "name": "熊本空港", "type": "times", "stations": [{"name": "熊本空港前", "models": ["CX-30", "ヤリスクロス", "フィット"]}], "fav_hotels": ["黒川温泉 ふじ屋"]},
+    {"code": "KMI", "name": "宮崎空港", "type": "times", "stations": [{"name": "宮崎空港前", "models": ["ヤリスクロス", "フィット"]}], "fav_hotels": ["シェラトン・グランデ"]},
+    {"code": "KOJ", "name": "鹿児島空港", "type": "times", "stations": [{"name": "鹿児島空港前", "models": ["ヤリスクロス", "フィット", "ノート"]}], "fav_hotels": ["霧島温泉 霧島ホテル"]},
+    {"code": "OKA", "name": "那覇空港", "type": "times", "stations": [{"name": "那覇空港店（送迎あり）", "models": ["C-HR", "CX-30", "MAZDA3", "ノア", "ヴォクシー"]}], "fav_hotels": ["サザンビーチホテル"]},
+    {"code": "MMY", "name": "宮古空港", "type": "times", "stations": [{"name": "宮古空港前", "models": ["ヤリスクロス", "フィット"]}], "fav_hotels": ["シギラベイサイドスイート"]},
+    {"code": "ISG", "name": "新石垣空港", "type": "times", "stations": [{"name": "石垣空港前", "models": ["ヤリスクロス", "フィット"]}], "fav_hotels": ["フサキビーチリゾート"]}
 ]
 
-# --- 車種適合判定 ---
+# 車種適合判定
 def has_matching_car(ap, target_models):
     if not target_models:
         return True
@@ -104,7 +143,7 @@ def has_matching_car(ap, target_models):
                 return True
     return False
 
-# --- ステータス判定 ---
+# 可否ステータス判定
 def get_status_tag(ap):
     car_ok = False
     hotel_ok = True if trip_type == "日帰り" else False
@@ -128,57 +167,50 @@ def get_status_tag(ap):
     else:
         return "❌未照"
 
-start_dt = datetime.combine(start_date, start_time)
-end_dt = datetime.combine(end_date, end_time)
+# --- 候補空港の選択エリア ---
+st.subheader("⚙️ 候補空港選択")
 
-st.success(f"📅 【条件】{num_people}名 | {trip_type} | {start_dt.strftime('%m/%d %H:%M')} 〜 {end_dt.strftime('%m/%d %H:%M')}")
-
-st.markdown("### 🎲 ガチャ候補空港リスト (縦3列)")
-st.caption("※希望車種の配備がない空港はグレーアウトしています。ダメだった空港は☑を外して絞り込んでください。")
-
-# --- STEP 1: 横3列固定表示＆初期状態全チェックON ---
 selected_airports = []
 
-# 3列カラムレイアウト
-cols = st.columns(3)
-
-for idx, ap in enumerate(AIRPORT_DB):
-    car_match = has_matching_car(ap, selected_models)
-    is_available = car_match or allow_other_car
+# 2列グリッド配置（白背景カード内）
+with st.container():
+    st.markdown('<div class="airport-container">', unsafe_allow_html=True)
+    cols = st.columns(2)
     
-    # セッションキーの初期化（初回は該当空港をデフォルトTrue＝☑ONに設定）
-    key_name = f"select_{ap['code']}"
-    if key_name not in st.session_state:
-        st.session_state[key_name] = is_available
+    for idx, ap in enumerate(AIRPORT_DB):
+        car_match = has_matching_car(ap, selected_models)
+        is_available = car_match or allow_other_car
+        
+        # キー初期設定（基本全チェック☑ON）
+        key_name = f"select_{ap['code']}"
+        if key_name not in st.session_state:
+            st.session_state[key_name] = is_available
 
-    status_icon = get_status_tag(ap)
-    col_target = cols[idx % 3]
+        status_icon = get_status_tag(ap)
+        col_target = cols[idx % 2]
 
-    with col_target:
-        if is_available:
-            label = f"[{status_icon}] {ap['name']}({ap['code']})"
-            checked = st.checkbox(label, key=key_name)
-            if checked:
-                selected_airports.append(ap)
-        else:
-            # 希望車種なし・対象外空港のグレーアウト表示
-            st.caption(f"⚪ (非該当) {ap['name']}({ap['code']})")
+        with col_target:
+            if is_available:
+                label = f"{status_icon} {ap['name']}"
+                checked = st.checkbox(label, key=key_name)
+                if checked:
+                    selected_airports.append(ap)
+            else:
+                st.caption(f"⚪ (希望車種なし) {ap['name']}")
+                
+    st.markdown('</div>', unsafe_allow_html=True)
 
-st.divider()
-
-# --- STEP 2: 選択中空港の照会・チェック入力 ---
-if not selected_airports:
-    st.warning("⚠️ 候補として選択されている空港がありません。上のリストで☑を入れてください。")
-else:
-    st.markdown(f"### 📋 候補空港の車・宿 空き確認 ({len(selected_airports)}件)")
+# --- 候補地の受入態勢の確認・入力エリア ---
+if selected_airports:
+    st.subheader(f"📋 選択中空港の受け入れ態勢 ({len(selected_airports)}件)")
 
     for ap in selected_airports:
         status_icon = get_status_tag(ap)
-        with st.expander(f"【{status_icon}】✈️ {ap['name']}空港 ({ap['code']}) の詳細・空き入力", expanded=True):
-            col1, col2, col3 = st.columns([1.2, 1, 0.8])
+        with st.expander(f"【{status_icon}】✈️ {ap['name']} ({ap['code']})", expanded=True):
+            col1, col2 = st.columns([1.2, 1])
             
             with col1:
-                st.markdown("**🚗 空車確認 (☑)**")
+                st.markdown("**🚗 車両空き状況 (☑)**")
                 if ap["type"] == "times":
                     st.link_button("📲 タイムズマイページへ", "https://share.timescar.jp/view/sp/member/mypage.jsp")
                     for s_idx, st_info in enumerate(ap["stations"]):
@@ -186,24 +218,19 @@ else:
                         for m_idx, model in enumerate(st_info["models"]):
                             st.checkbox(f"☑ {model} 空車あり", key=f"car_chk_{ap['code']}_{s_idx}_{m_idx}")
                 
-                # 希望車種がない場合やタイムズ非対応エリアの補完リンク
                 if not has_matching_car(ap, selected_models) or ap["type"] != "times":
-                    st.info("💡 希望車種なし / タイムズ外")
+                    st.caption("💡 タイムズ希望車種なし／その他")
                     st.link_button("📲 dカーシェアで検索", "https://dcarshare.docomo.ne.jp/")
                     st.link_button("📲 楽天トラベル レンタカー", "https://travel.rakuten.co.jp/cars/")
 
             with col2:
-                st.markdown(f"**🏨 温泉・バイキング宿({num_people}名)**")
+                st.markdown(f"**🏨 温泉宿・天気**")
                 if trip_type == "日帰り":
                     st.info("日帰りのため宿不要")
                 else:
                     jalan_url = f"https://www.jalan.net/uw/uwp3000/uwp3001.do?keyword={ap['name']}+温泉+バイキング&adultNum={num_people}"
-                    st.link_button(f"📲 じゃらんで検索", jalan_url)
+                    st.link_button(f"📲 じゃらんで宿検索", jalan_url)
                     for h_idx, h_name in enumerate(ap["fav_hotels"]):
                         st.checkbox(f"☑ {h_name} 空室あり", key=f"hotel_chk_{ap['code']}_{h_idx}")
 
-            with col3:
-                st.markdown("**🌤 天気**")
-                st.link_button("📲 天気予報", f"https://tenki.jp/search/?keyword={ap['name']}")
-
-            st.divider()
+                st.link_button("🌤 天気予報を見る", f"https://tenki.jp/search/?keyword={ap['name']}")
