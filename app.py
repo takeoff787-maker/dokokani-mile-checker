@@ -3,15 +3,25 @@ from datetime import datetime, timedelta
 
 st.set_page_config(page_title="どこかにマイル 条件クリア空港 判定アプリ", page_icon="✈️", layout="wide")
 
-# スマホ画面でも強制的に3列表示を維持するCSS
+# スマホ画面でも強制的に【横3列】を固定するカスタムCSS
 st.markdown("""
     <style>
-    [data-testid="column"] {
-        min-width: 30% !important;
+    .airport-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 6px;
+        margin-bottom: 20px;
     }
-    div.stCheckbox > label {
-        font-size: 13px !important;
-        white-space: nowrap !important;
+    .airport-card {
+        background-color: #1e222d;
+        padding: 6px 8px;
+        border-radius: 6px;
+        font-size: 12px;
+        border: 1px solid #313745;
+    }
+    .disabled-card {
+        opacity: 0.4;
+        background-color: #14171f;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -24,6 +34,7 @@ if "custom_hotels" not in st.session_state:
 # --- サイドバー設定 ---
 with st.sidebar:
     st.header("⚙️ 初期設定・基本条件")
+    
     num_people = st.number_input("利用人数（名）", min_value=1, max_value=6, value=1, step=1)
     trip_type = st.radio("旅行スタイル", ["1泊2日", "2泊3日", "日帰り"], index=0)
     
@@ -39,6 +50,15 @@ with st.sidebar:
         end_date = start_date + timedelta(days=2)
         
     end_time = st.time_input("帰着時間", datetime.strptime("18:00", "%H:%M").time())
+
+    st.subheader("🚗 車両・配備条件")
+    selected_models = st.multiselect(
+        "希望車種（タイムズ）",
+        ["C-HR", "CX-30", "MAZDA3", "ヤリスクロス", "ノア", "ヴォクシー", "フィット", "ヤリス", "ノート"],
+        default=["C-HR", "CX-30", "MAZDA3", "ヤリスクロス"]
+    )
+    
+    allow_other_car = st.checkbox("タイムズに希望車種がなければ dカーシェア/一般レンタカーも選択肢に含める", value=False)
 
 # --- 空港データベース ---
 AIRPORT_DB = [
@@ -69,29 +89,32 @@ AIRPORT_DB = [
     {"code": "KMJ", "name": "熊本", "type": "times", "stations": [{"name": "熊本空港前", "models": ["CX-30", "ヤリスクロス", "フィット"]}], "fav_hotels": ["黒川温泉 ふじ屋"]},
     {"code": "KMI", "name": "宮崎", "type": "times", "stations": [{"name": "宮崎空港前", "models": ["ヤリスクロス", "フィット"]}], "fav_hotels": ["シェラトン・グランデ"]},
     {"code": "KOJ", "name": "鹿児島", "type": "times", "stations": [{"name": "鹿児島空港前", "models": ["ヤリスクロス", "フィット", "ノート"]}], "fav_hotels": ["霧島温泉 霧島ホテル"]},
-    {"code": "OKA", "name": "那覇", "type": "times", "stations": [{"name": "那覇空港店（送迎あり）", "models": ["C-HR", "CX-30", "ヤリスクロス", "ノア", "ヴォクシー"]}], "fav_hotels": ["サザンビーチホテル"]},
+    {"code": "OKA", "name": "那覇", "type": "times", "stations": [{"name": "那覇空港店（送迎あり）", "models": ["C-HR", "CX-30", "MAZDA3", "ノア", "ヴォクシー"]}], "fav_hotels": ["サザンビーチホテル"]},
     {"code": "MMY", "name": "宮古", "type": "times", "stations": [{"name": "宮古空港前", "models": ["ヤリスクロス", "フィット"]}], "fav_hotels": ["シギラベイサイドスイート"]},
     {"code": "ISG", "name": "新石垣", "type": "times", "stations": [{"name": "石垣空港前", "models": ["ヤリスクロス", "フィット"]}], "fav_hotels": ["フサキビーチリゾート"]}
 ]
 
-start_dt = datetime.combine(start_date, start_time)
-end_dt = datetime.combine(end_date, end_time)
+# --- 車種適合判定 ---
+def has_matching_car(ap, target_models):
+    if not target_models:
+        return True
+    for st_info in ap.get("stations", []):
+        for m in st_info.get("models", []):
+            if m in target_models:
+                return True
+    return False
 
-st.success(f"📅 【設定条件】{num_people}名 | {trip_type} | {start_dt.strftime('%m/%d %H:%M')} 〜 {end_dt.strftime('%m/%d %H:%M')}")
-
-# 各空港のチェック済み状態（ステータス）を事前に算出
+# --- ステータス判定 ---
 def get_status_tag(ap):
     car_ok = False
     hotel_ok = True if trip_type == "日帰り" else False
 
-    # 車両チェック確認
     for s_idx, st_info in enumerate(ap["stations"]):
         for m_idx, _ in enumerate(st_info["models"]):
             if st.session_state.get(f"car_chk_{ap['code']}_{s_idx}_{m_idx}", False):
                 car_ok = True
                 break
 
-    # ホテルチェック確認
     if trip_type != "日帰り":
         for h_idx, _ in enumerate(ap["fav_hotels"]):
             if st.session_state.get(f"hotel_chk_{ap['code']}_{h_idx}", False):
@@ -105,29 +128,49 @@ def get_status_tag(ap):
     else:
         return "❌未照"
 
-# --- STEP 1: 空港選択リスト（横3列固定） ---
-st.markdown("### 🎲 ガチャ照合用 空港リスト")
+start_dt = datetime.combine(start_date, start_time)
+end_dt = datetime.combine(end_date, end_time)
 
+st.success(f"📅 【条件】{num_people}名 | {trip_type} | {start_dt.strftime('%m/%d %H:%M')} 〜 {end_dt.strftime('%m/%d %H:%M')}")
+
+st.markdown("### 🎲 ガチャ候補空港リスト (縦3列)")
+st.caption("※希望車種の配備がない空港はグレーアウトしています。ダメだった空港は☑を外して絞り込んでください。")
+
+# --- STEP 1: 横3列固定表示＆初期状態全チェックON ---
 selected_airports = []
 
-# 画面を常に横3列に分ける
+# 3列カラムレイアウト
 cols = st.columns(3)
+
 for idx, ap in enumerate(AIRPORT_DB):
+    car_match = has_matching_car(ap, selected_models)
+    is_available = car_match or allow_other_car
+    
+    # セッションキーの初期化（初回は該当空港をデフォルトTrue＝☑ONに設定）
+    key_name = f"select_{ap['code']}"
+    if key_name not in st.session_state:
+        st.session_state[key_name] = is_available
+
     status_icon = get_status_tag(ap)
     col_target = cols[idx % 3]
+
     with col_target:
-        # 空港名横にステータスバッジ（🟢OK等）を表示
-        label = f"[{status_icon}] {ap['name']}({ap['code']})"
-        if st.checkbox(label, key=f"select_{ap['code']}"):
-            selected_airports.append(ap)
+        if is_available:
+            label = f"[{status_icon}] {ap['name']}({ap['code']})"
+            checked = st.checkbox(label, key=key_name)
+            if checked:
+                selected_airports.append(ap)
+        else:
+            # 希望車種なし・対象外空港のグレーアウト表示
+            st.caption(f"⚪ (非該当) {ap['name']}({ap['code']})")
 
 st.divider()
 
-# --- STEP 2: 選択された空港の詳細照会 ＆ チェック入力 ---
+# --- STEP 2: 選択中空港の照会・チェック入力 ---
 if not selected_airports:
-    st.info("👆 上の3列リストから、ガチャで出た4空港にチェックを入れてください。")
+    st.warning("⚠️ 候補として選択されている空港がありません。上のリストで☑を入れてください。")
 else:
-    st.markdown(f"### 📋 選択中空港の車・宿照会 ({len(selected_airports)}件)")
+    st.markdown(f"### 📋 候補空港の車・宿 空き確認 ({len(selected_airports)}件)")
 
     for ap in selected_airports:
         status_icon = get_status_tag(ap)
@@ -135,16 +178,19 @@ else:
             col1, col2, col3 = st.columns([1.2, 1, 0.8])
             
             with col1:
-                st.markdown("**🚗 タイムズカー空車(☑)**")
+                st.markdown("**🚗 空車確認 (☑)**")
                 if ap["type"] == "times":
-                    st.link_button("📲 マイページ照会へ", "https://share.timescar.jp/view/sp/member/mypage.jsp")
+                    st.link_button("📲 タイムズマイページへ", "https://share.timescar.jp/view/sp/member/mypage.jsp")
                     for s_idx, st_info in enumerate(ap["stations"]):
                         st.caption(f"📍 {st_info['name']}")
                         for m_idx, model in enumerate(st_info["models"]):
                             st.checkbox(f"☑ {model} 空車あり", key=f"car_chk_{ap['code']}_{s_idx}_{m_idx}")
-                else:
-                    st.error("タイムズ非対応")
-                    st.link_button("📲 dカーシェア", "https://dcarshare.docomo.ne.jp/")
+                
+                # 希望車種がない場合やタイムズ非対応エリアの補完リンク
+                if not has_matching_car(ap, selected_models) or ap["type"] != "times":
+                    st.info("💡 希望車種なし / タイムズ外")
+                    st.link_button("📲 dカーシェアで検索", "https://dcarshare.docomo.ne.jp/")
+                    st.link_button("📲 楽天トラベル レンタカー", "https://travel.rakuten.co.jp/cars/")
 
             with col2:
                 st.markdown(f"**🏨 温泉・バイキング宿({num_people}名)**")
