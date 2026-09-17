@@ -3,9 +3,12 @@ from datetime import datetime, timedelta
 
 st.set_page_config(page_title="どこかにマイル 判定＆チェックツール", page_icon="✈️", layout="centered")
 
-# ダークモードに最適化したスタイル定義
+# カスタムCSS
 st.markdown("""
     <style>
+    html {
+        scroll-behavior: smooth;
+    }
     /* 赤色メインヘッダー */
     .header-card {
         background: linear-gradient(135deg, #d32f2f 0%, #9a0007 100%);
@@ -36,6 +39,27 @@ st.markdown("""
         font-size: 12px;
         margin-bottom: 16px;
     }
+    /* クイックジャンプリンク表示 */
+    .quick-nav {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin: 10px 0 20px 0;
+    }
+    .quick-nav a {
+        background-color: #1e293b;
+        color: #60a5fa !important;
+        border: 1px solid #3b82f6;
+        padding: 4px 10px;
+        border-radius: 15px;
+        font-size: 12px;
+        text-decoration: none;
+        font-weight: bold;
+    }
+    .quick-nav a:hover {
+        background-color: #3b82f6;
+        color: #ffffff !important;
+    }
     /* 空港枠（カード風コンテナ） */
     div[data-testid="stForm"] {
         border: 1px solid #334155 !important;
@@ -45,6 +69,9 @@ st.markdown("""
     }
     </style>
 """, unsafe_allow_html=True)
+
+# 画面トップアンカー
+st.markdown('<div id="top"></div>', unsafe_allow_html=True)
 
 # 赤ヘッダー
 st.markdown("""
@@ -57,7 +84,7 @@ st.markdown("""
 # 説明カード
 st.markdown("""
     <div class="info-box">
-        💡 <b>使い方:</b> 初期状態で全空港に☑が入っています。条件に合わない・NGだった空港は☑を外して消し込んでください。
+        💡 <b>使い方:</b> 初期状態で全空港に☑が入っています。不要な空港は☑を外し、下のジャンプボタンから目的の空港へ直接移動できます。
     </div>
 """, unsafe_allow_html=True)
 
@@ -159,10 +186,9 @@ def get_status_tag(ap):
 
 selected_airports = []
 
-# --- 枠で囲んだ空港選択エリア（1つ目の画像風デザイン） ---
+# --- 枠で囲んだ空港選択エリア ---
 st.markdown("##### ⚙️ 候補空港選択")
 
-# 枠で囲むコンテナフォーム
 with st.form(key="airport_select_form", border=True):
     cols = st.columns(2)
     
@@ -186,8 +212,17 @@ with st.form(key="airport_select_form", border=True):
             else:
                 st.caption(f"⚪ (希望車種なし) {ap['name']}")
 
-    # 判定更新ボタン（枠の最下部）
     st.form_submit_button("受け入れ態勢の判定を更新", use_container_width=True)
+
+# --- 🎯 ワンタップジャンプ（ショートカット目次） ---
+if selected_airports:
+    st.markdown("##### 🚀 選択中空港へ一発ジャンプ")
+    nav_html = '<div class="quick-nav">'
+    for ap in selected_airports:
+        status_icon = get_status_tag(ap)
+        nav_html += f'<a href="#airport-{ap["code"]}">{status_icon} {ap["name"]}</a>'
+    nav_html += '</div>'
+    st.markdown(nav_html, unsafe_allow_html=True)
 
 st.divider()
 
@@ -197,6 +232,10 @@ if selected_airports:
 
     for ap in selected_airports:
         status_icon = get_status_tag(ap)
+        
+        # ジャンプ先用アンカータグ
+        st.markdown(f'<div id="airport-{ap["code"]}"></div>', unsafe_allow_html=True)
+        
         with st.expander(f"【{status_icon}】✈️ {ap['name']} ({ap['code']})", expanded=True):
             col1, col2 = st.columns([1.2, 1])
             
@@ -225,3 +264,10 @@ if selected_airports:
                         st.checkbox(f"☑ {h_name} 空室あり", key=f"hotel_chk_{ap['code']}_{h_idx}")
 
                 st.link_button("🌤 天気予報を見る", f"https://tenki.jp/search/?keyword={ap['name']}")
+
+            # 各枠の右下に「▲ トップに戻る」ボタンを追加
+            st.markdown("""
+                <div style="text-align: right; margin-top: 10px;">
+                    <a href="#top" style="text-decoration: none; font-size: 12px; background-color: #334155; color: #f8fafc; padding: 4px 12px; border-radius: 4px; font-weight: bold;">▲ トップに戻る</a>
+                </div>
+            """, unsafe_allow_html=True)
