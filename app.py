@@ -100,11 +100,6 @@ with st.sidebar:
     st.subheader("🚗 探したい優先クラス・車種")
     selected_classes = st.multiselect("希望クラス", ["ベーシック", "ミドル", "プレミアム"], default=["ベーシック", "ミドル"])
     
-    # 選択クラスに対応する推奨車種リスト作成
-    suggested_models = []
-    for cls in selected_classes:
-        suggested_models.extend(TIMES_CAR_MODELS[cls])
-        
     user_priority_models = st.multiselect("希望車種（複数選択可）", options=ALL_MODELS, default=["ヤリスクロス", "CX-30", "シエンタ", "ノア"])
 
     st.divider()
@@ -172,9 +167,9 @@ with tab1:
                     st_key = f"{code}_{st_name}"
                     configured_models = st.session_state["station_config"].get(st_key, [])
                     
-                    st.markdown(f'<div class="station-box">', unsafe_allow_html=True)
+                    st.markdown('<div class="station-box">', unsafe_allow_html=True)
                     if configured_models:
-                        st.markdown(f"<b>📍 {st_name}</b> <span class="status-badge-set">設定済 ✅</span>", unsafe_allow_html=True)
+                        st.markdown(f'<b>📍 {st_name}</b> <span class="status-badge-set">設定済 ✅</span>', unsafe_allow_html=True)
                         st.caption("配備設定車種:")
                         
                         # 配備車種ごとにチェックボックス作成
@@ -182,7 +177,7 @@ with tab1:
                             is_hit = "⭐ " if m in user_priority_models else ""
                             st.checkbox(f"{is_hit}{m} （空車あり）", key=f"check_{code}_{st_name}_{m}")
                     else:
-                        st.markdown(f"<b>📍 {st_name}</b> <span class="status-badge-unset">未設定 ⚪</span>", unsafe_allow_html=True)
+                        st.markdown(f'<b>📍 {st_name}</b> <span class="status-badge-unset">未設定 ⚪</span>', unsafe_allow_html=True)
                         st.caption("※「配備設定」タブで車種を登録すると、チェックリストが表示されます。")
                         
                     st.markdown('</div>', unsafe_allow_html=True)
@@ -231,9 +226,9 @@ with tab2:
             st.markdown(f"#### 📍 {st_name}")
             
             if current_saved:
-                st.markdown("<span class=\"status-badge-set\">現在: 設定済み ✅</span>", unsafe_allow_html=True)
+                st.markdown('<span class="status-badge-set">現在: 設定済み ✅</span>', unsafe_allow_html=True)
             else:
-                st.markdown("<span class=\"status-badge-unset\">現在: 未設定 ⚪</span>", unsafe_allow_html=True)
+                st.markdown('<span class="status-badge-unset">現在: 未設定 ⚪</span>', unsafe_allow_html=True)
                 
             new_selected = st.multiselect(
                 "配備されている車種を選択",
