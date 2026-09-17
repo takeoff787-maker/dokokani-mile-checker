@@ -21,6 +21,9 @@ with st.sidebar:
         default=["C-HR", "CX-30", "MAZDA3", "ヤリスクロス"]
     )
     
+    st.subheader("🔍 表示フィルター")
+    only_matched = st.checkbox("🟢 希望車種がある空港のみ表示する", value=False)
+    
     search_btn = st.button("🔍 条件に合う候補地を一括確認", type="primary")
 
 # --- 空港＆店舗情報データベース ---
@@ -78,49 +81,59 @@ if search_btn or True:
     
     st.success(f"📅 【設定日時】{start_dt.strftime('%Y/%m/%d %H:%M')} 〜 {end_dt.strftime('%m/%d %H:%M')}")
     
+    st.markdown("### 📋 候補地チェック・絞り込み")
+    st.caption("車・宿・天気を手動確認し、クリアした空港にチェックを入れて比較候補を決定してください。")
+
     for ap in AIRPORT_DB:
         matched_models = [m for m in times_car_models if m in ap["models"]]
         has_match = len(matched_models) > 0
+        
+        # サイドバーで「希望車種がある空港のみ表示」が有効な場合、一致しない空港をスキップ
+        if only_matched and not has_match:
+            continue
         
         status_tag = "🟢 希望車種配備あり" if has_match else "🟡 コンパクト/他車種のみ"
         if ap["type"] == "rental":
             status_tag = "🔴 カーシェア非対応（レンタカー専業）"
 
-        with st.expander(f"✈️ 【{ap['name']} ({ap['code']})】 - {status_tag}", expanded=True):
-            col1, col2, col3 = st.columns(3)
-            
-            with col1:
-                st.markdown("**🚗 車両・配備ステーション情報**")
-                st.caption(ap["note"])
+        # チェックボックスによるクリア管理
+        is_cleared = st.checkbox(f"✅ **【{ap['name']} ({ap['code']})】** - {status_tag}", value=has_match, key=ap['code'])
+
+        if is_cleared or not only_matched:
+            with st.expander(f"詳細確認：{ap['name']}（{ap['region']}）", expanded=is_cleared):
+                col1, col2, col3 = st.columns(3)
                 
-                if ap["type"] == "times":
-                    st.write("**【配備されている主な車種】**")
-                    st.write(", ".join(ap["models"]))
+                with col1:
+                    st.markdown("**🚗 車両・配備ステーション情報**")
+                    st.caption(ap["note"])
                     
-                    if has_match:
-                        st.success(f"希望一致: {', '.join(matched_models)}")
+                    if ap["type"] == "times":
+                        st.write("**【配備されている主な車種】**")
+                        st.write(", ".join(ap["models"]))
+                        
+                        if has_match:
+                            st.success(f"希望一致: {', '.join(matched_models)}")
+                        else:
+                            st.warning("指定された希望車種の配備が少ない/ありません")
+                        
+                        st.markdown("---")
+                        mypage_url = "https://share.timescar.jp/view/sp/member/mypage.jsp"
+                        st.link_button("📲 タイムズカー マイページ（空車照会）へ", mypage_url)
+                        st.caption("※マイページの「ステーション検索」で「" + ap['name'] + "」を入力")
                     else:
-                        st.warning("指定された希望車種の配備が少ない/ありません")
-                    
-                    st.markdown("---")
-                    # マイページ直行リンク
-                    mypage_url = "https://share.timescar.jp/view/sp/member/mypage.jsp"
-                    st.link_button("📲 タイムズカー マイページ（空車照会）へ", mypage_url)
-                    st.caption("※マイページの「ステーション検索」で「" + ap['name'] + "」を入力")
-                else:
-                    st.error("タイムズカーシェアのステーションはありません")
-                    st.write("**【代替手段】**")
-                    st.link_button("📲 dカーシェアで空車検索", "https://dcarshare.docomo.ne.jp/")
-                    st.link_button("📲 タイムズカーレンタル（公式）", "https://rental.timescar.jp/")
+                        st.error("タイムズカーシェアのステーションはありません")
+                        st.write("**【代替手段】**")
+                        st.link_button("📲 dカーシェアで空車検索", "https://dcarshare.docomo.ne.jp/")
+                        st.link_button("📲 タイムズカーレンタル（公式）", "https://rental.timescar.jp/")
 
-            with col2:
-                st.markdown("**🏨 温泉＆バイキング宿**")
-                st.write("1泊2食付き 予算1〜2万円台")
-                jalan_url = f"https://www.jalan.net/uw/uwp3000/uwp3001.do?keyword={ap['name']}+温泉+バイキング"
-                st.link_button("📲 じゃらんで空室・プラン確認", jalan_url)
+                with col2:
+                    st.markdown("**🏨 温泉＆バイキング宿**")
+                    st.write("1泊2食付き 予算1〜2万円台")
+                    jalan_url = f"https://www.jalan.net/uw/uwp3000/uwp3001.do?keyword={ap['name']}+温泉+バイキング"
+                    st.link_button("📲 じゃらんで空室・プラン確認", jalan_url)
 
-            with col3:
-                st.markdown("**🌤 現地天気**")
-                st.write("出発前の天気予報確認")
-                tenki_url = f"https://tenki.jp/search/?keyword={ap['name']}"
-                st.link_button("📲 天気予報を確認", tenki_url)
+                with col3:
+                    st.markdown("**🌤 現地天気**")
+                    st.write("出発前の天気予報確認")
+                    tenki_url = f"https://tenki.jp/search/?keyword={ap['name']}"
+                    st.link_button("📲 天気予報を確認", tenki_url)
